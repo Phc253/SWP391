@@ -1,6 +1,6 @@
-
 using Microsoft.EntityFrameworkCore;
 using SWP391.Entities;
+using SWP391.Middlewares;
 using SWP391.Repositories;
 using SWP391.Service;
 
@@ -11,7 +11,7 @@ namespace SWP391
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
+            
             // Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
@@ -24,8 +24,10 @@ namespace SWP391
             builder.Services.AddSwaggerGen();
 
             var app = builder.Build();
-
+            
             // Configure the HTTP request pipeline.
+            app.UseMiddleware<ExceptionMiddleware>();
+
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
