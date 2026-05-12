@@ -7,14 +7,14 @@ using SWP391.Repositories;
 
 namespace SWP391.Service
 {
-    public class AccountServices
+    public class AccountService
     {
         private const int MinPasswordLength = 6;
         private const int MaxPasswordLength = 100;
 
         private readonly AccountRepository _accountRepository;
 
-        public AccountServices(AccountRepository accountRepository)
+        public AccountService(AccountRepository accountRepository)
         {
             _accountRepository = accountRepository;
         }

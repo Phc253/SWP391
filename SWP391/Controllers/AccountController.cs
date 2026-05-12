@@ -8,9 +8,9 @@ namespace SWP391.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
-        private readonly AccountServices _accountServices;
+        private readonly AccountService _accountServices;
 
-        public AccountController(AccountServices accountServices)
+        public AccountController(AccountService accountServices)
         {
             _accountServices = accountServices;
         }
