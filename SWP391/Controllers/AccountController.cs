@@ -8,9 +8,9 @@ namespace SWP391.Controllers
     [Route("api/[controller]")]
     public class AccountController : ControllerBase
     {
-        private readonly AccountServices _accountServices;
+        private readonly AccountService _accountServices;
 
-        public AccountController(AccountServices accountServices)
+        public AccountController(AccountService accountServices)
         {
             _accountServices = accountServices;
         }
@@ -22,6 +22,18 @@ namespace SWP391.Controllers
             if (!result.Success)
             {
                 return BadRequest(new { message = result.Error });
+            }
+
+            return Ok(result.Data);
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var result = await _accountServices.LoginAsync(request);
+            if (!result.Success)
+            {
+                return Unauthorized(new { message = result.Error });
             }
 
             return Ok(result.Data);
