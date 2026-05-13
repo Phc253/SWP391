@@ -15,7 +15,7 @@ namespace SWP391
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-
+            // CORS for the Frontend
             builder.Services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
@@ -29,7 +29,7 @@ namespace SWP391
             // Add services to the container.
             builder.Services.AddControllers();
 
-            // === [THÊM M?I] C?u hình JWT Authentication ===
+            // Set up JWT Authentication ====================
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -53,6 +53,20 @@ namespace SWP391
             });
             // ===============================================
 
+            // === [THÊM M?I] C?u hình Policy-Based Authorization ===
+            builder.Services.AddAuthorization(options =>
+            {
+                // Chính sách: Ch? có Admin m?i ???c phép
+                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+                
+                // Chính sách: Cho phép Admin HO?C Researcher (Nhà nghiên c?u)
+                options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Admin", "Researcher"));
+                
+                // Chính sách: Yêu c?u là Reader tr? lên
+                options.AddPolicy("IsReader", policy => policy.RequireRole("Admin", "Researcher", "Reader"));
+            });
+            // ===============================================
+
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
             builder.Services.AddScoped<AccountRepository>();
@@ -60,13 +74,13 @@ namespace SWP391
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
-            
-            // === [THÊM M?I] C?u hình Swagger ?? h? tr? test JWT Token ===
+
+            // Swagger configuration to include JWT authentication in the UI
             builder.Services.AddSwaggerGen(c =>
             {
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
-                    Description = "Nh?p token JWT theo ??nh d?ng: {token}",
+                    Description = "Enter token by format {token}",
                     Name = "Authorization",
                     In = ParameterLocation.Header,
                     Type = SecuritySchemeType.Http,
