@@ -1,5 +1,9 @@
 ﻿using System.Net.Mail;
 using System.Security.Cryptography;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using SWP391.Entities;
 using SWP391.Models;
 using SWP391.Models.Account;
@@ -13,10 +17,12 @@ namespace SWP391.Service
         private const int MaxPasswordLength = 100;
 
         private readonly AccountRepository _accountRepository;
+        private readonly IConfiguration _configuration;
 
-        public AccountService(AccountRepository accountRepository)
+        public AccountService(AccountRepository accountRepository, IConfiguration configuration)
         {
             _accountRepository = accountRepository;
+            _configuration = configuration;
         }
 
         public async Task<ServiceResult<RegisterResponse>> RegisterAsync(RegisterRequest request)
@@ -105,6 +111,68 @@ namespace SWP391.Service
             var hash = pbkdf2.GetBytes(32);
 
             return $"{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
+        }
+
+        public async Task<ServiceResult<LoginResponse>> LoginAsync(LoginRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            {
+                return ServiceResult<LoginResponse>.Fail("Invalid credentials.");
+            }
+
+            var user = await _accountRepository.GetUserByEmailAsync(request.Email);
+            if (user == null)
+            {
+                return ServiceResult<LoginResponse>.Fail("User not found.");
+            }
+
+            if (!VerifyPassword(request.Password, user.PasswordHash))
+            {
+                return ServiceResult<LoginResponse>.Fail("Invalid password.");
+            }
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_configuration["JWT:Secret"] ?? "SuperSecretKeyForJWTWhichMustBeMoreThan16Chars!");
+            
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Name, user.FullName ?? string.Empty)
+                }),
+                Expires = DateTime.UtcNow.AddDays(7),
+                Issuer = _configuration["JWT:ValidIssuer"],
+                Audience = _configuration["JWT:ValidAudience"],
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = tokenHandler.CreateToken(tokenDescriptor);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            return ServiceResult<LoginResponse>.Ok(new LoginResponse 
+            { 
+                Token = tokenString,
+                Email = user.Email
+            });
+        }
+
+        private static bool VerifyPassword(string enteredPassword, string storedHash)
+        {
+            var parts = storedHash.Split('.', 2);
+            if (parts.Length != 2)
+            {
+                return false;
+            }
+
+            var salt = Convert.FromBase64String(parts[0]);
+            var hash = Convert.FromBase64String(parts[1]);
+
+            using var pbkdf2 = new Rfc2898DeriveBytes(enteredPassword, salt, 10000, HashAlgorithmName.SHA256);
+            var testHash = pbkdf2.GetBytes(32);
+
+            return CryptographicOperations.FixedTimeEquals(hash, testHash);
         }
     }
 }

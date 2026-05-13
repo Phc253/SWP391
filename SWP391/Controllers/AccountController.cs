@@ -26,5 +26,17 @@ namespace SWP391.Controllers
 
             return Ok(result.Data);
         }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var result = await _accountServices.LoginAsync(request);
+            if (!result.Success)
+            {
+                return Unauthorized(new { message = result.Error });
+            }
+
+            return Ok(result.Data);
+        }
     }
 }
