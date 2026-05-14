@@ -3,19 +3,19 @@ using System.Collections.Generic;
 
 namespace SWP391.Entities;
 
-public partial class PublicationTrend
+public partial class TrendSnapshot
 {
-    public long TrendId { get; set; }
+    public long SnapshotId { get; set; }
 
     public int? TopicId { get; set; }
 
     public int? KeywordId { get; set; }
 
-    public int? TrendYear { get; set; }
+    public DateTime? SnapshotDate { get; set; }
 
-    public int? PaperCount { get; set; }
+    public double? TrendScore { get; set; }
 
-    public DateTime? LastUpdated { get; set; }
+    public double? GrowthRate { get; set; }
 
     public virtual Keyword? Keyword { get; set; }
 

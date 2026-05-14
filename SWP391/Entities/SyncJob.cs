@@ -7,7 +7,7 @@ public partial class SyncJob
 {
     public long SyncJobId { get; set; }
 
-    public int SourceId { get; set; }
+    public int? SourceId { get; set; }
 
     public DateTime? StartTime { get; set; }
 
@@ -19,5 +19,5 @@ public partial class SyncJob
 
     public string? ErrorMessage { get; set; }
 
-    public virtual ApiDataSource Source { get; set; } = null!;
+    public virtual ApiDataSource? Source { get; set; }
 }

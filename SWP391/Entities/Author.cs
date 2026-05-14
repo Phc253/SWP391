@@ -7,7 +7,11 @@ public partial class Author
 {
     public int AuthorId { get; set; }
 
-    public string AuthorName { get; set; } = null!;
+    public string? AuthorName { get; set; }
 
-    public virtual ICollection<Paper> Papers { get; set; } = new List<Paper>();
+    public int? TotalPublications { get; set; }
+
+    public string? ResearchArea { get; set; }
+
+    public virtual ICollection<PaperAuthor> PaperAuthors { get; set; } = new List<PaperAuthor>();
 }

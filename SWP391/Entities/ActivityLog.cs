@@ -3,15 +3,17 @@ using System.Collections.Generic;
 
 namespace SWP391.Entities;
 
-public partial class Follow
+public partial class ActivityLog
 {
-    public long FollowId { get; set; }
+    public long LogId { get; set; }
 
     public int? UserId { get; set; }
 
-    public long? TargetId { get; set; }
+    public string? ActionType { get; set; }
 
-    public string? TargetType { get; set; }
+    public string? EntityName { get; set; }
+
+    public long? EntityId { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 

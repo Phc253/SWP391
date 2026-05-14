@@ -7,9 +7,9 @@ public partial class Notification
 {
     public long NotificationId { get; set; }
 
-    public int UserId { get; set; }
+    public int? UserId { get; set; }
 
-    public string Message { get; set; } = null!;
+    public string? Message { get; set; }
 
     public long? RelatedId { get; set; }
 
@@ -19,5 +19,5 @@ public partial class Notification
 
     public DateTime? CreatedAt { get; set; }
 
-    public virtual User User { get; set; } = null!;
+    public virtual User? User { get; set; }
 }
