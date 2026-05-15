@@ -21,15 +21,24 @@ namespace SWP391.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
-        public async Task<User> CreateUserAsync(User user)
+        public async Task<User> CreateUserAsync(User user, int? requestedRoleId = null)
         {
-            // Nếu bạn muốn cấp quyền tự động lúc đăng ký, bạn có thể lấy Role "Reader" (nếu có trong DB)
-            var readerRole = await _dbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == "Reader");
-            
-            if (readerRole != null)
+            // Nếu có specified RoleId (từ Client chọn qua combobox), thử lấy role đó lên
+            Role? roleToAssign = null;
+            if (requestedRoleId.HasValue)
             {
-                // Assign role "Reader" to new user
-                user.Roles.Add(readerRole);
+                roleToAssign = await _dbContext.Roles.FirstOrDefaultAsync(r => r.RoleId == requestedRoleId.Value);
+            }
+            
+            // Nếu không có role được yêu cầu hoặc role không tồn tại, lấy role mặc định (vd: Member)
+            if (roleToAssign == null)
+            {
+                roleToAssign = await _dbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == "Member");
+            }
+            
+            if (roleToAssign != null)
+            {
+                user.Roles.Add(roleToAssign);
             }
 
             _dbContext.Users.Add(user);
