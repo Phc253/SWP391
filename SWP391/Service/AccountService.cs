@@ -76,7 +76,7 @@ namespace SWP391.Service
                 IsActive = true
             };
 
-            var createdUser = await _accountRepository.CreateUserAsync(user);
+            var createdUser = await _accountRepository.CreateUserAsync(user, request.RoleId);
             var response = new RegisterResponse
             {
                 UserId = createdUser.UserId,

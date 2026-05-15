@@ -56,14 +56,14 @@ namespace SWP391
             // === [THÊM M?I] C?u hình Policy-Based Authorization ===
             builder.Services.AddAuthorization(options =>
             {
-                // Chính sách: Ch? có Admin m?i ???c phép
-                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+                // Chính sách: Ch? có Administrator m?i ???c phép
+                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrator"));
                 
-                // Chính sách: Cho phép Admin HO?C Researcher (Nhà nghiên c?u)
-                options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Admin", "Researcher"));
+                // Chính sách: Cho phép Administrator HO?C Researcher (Nhà nghiên c?u)
+                options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
-                // Chính sách: Yêu c?u là Reader tr? lên
-                options.AddPolicy("IsReader", policy => policy.RequireRole("Admin", "Researcher", "Reader"));
+                // Chính sách: Yêu c?u là Member tr? lên
+                options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
             });
             // ===============================================
 
