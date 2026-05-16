@@ -53,24 +53,29 @@ namespace SWP391
             });
             // ===============================================
 
-            // === [THÊM M?I] C?u hình Policy-Based Authorization ===
+            // === [THï¿½M M?I] C?u hï¿½nh Policy-Based Authorization ===
             builder.Services.AddAuthorization(options =>
             {
-                // Chính sách: Ch? có Administrator m?i ???c phép
+                // Chï¿½nh sï¿½ch: Ch? cï¿½ Administrator m?i ???c phï¿½p
                 options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrator"));
                 
-                // Chính sách: Cho phép Administrator HO?C Researcher (Nhà nghiên c?u)
+                // Chï¿½nh sï¿½ch: Cho phï¿½p Administrator HO?C Researcher (Nhï¿½ nghiï¿½n c?u)
                 options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
-                // Chính sách: Yêu c?u là Member tr? lên
+                // Chï¿½nh sï¿½ch: Yï¿½u c?u lï¿½ Member tr? lï¿½n
                 options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
             });
             // ===============================================
 
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                
+            builder.Services.AddHttpClient();
             builder.Services.AddScoped<AccountRepository>();
             builder.Services.AddScoped<AccountService>();
+            builder.Services.AddScoped<PaperRepository>();
+            builder.Services.AddScoped<PaperService>();
+            builder.Services.AddScoped<AcademicDataIntegrationService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
