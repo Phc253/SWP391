@@ -1,0 +1,8 @@
+1. Đánh giá thẳng thắn về chức năng Login / Register hiện tại
+Nhìn chung, bạn đã làm rất tốt phần cơ bản: Lưu mật khẩu có mã hóa (PBKDF2 + Salt rát chuẩn), tích hợp được JWT, có Policy-Based Authorization và quản lý được Role qua Entity Framework. Khá xịn!
+TUY NHIÊN, vẫn còn những lỗ hổng và thiếu sót sau cần khắc phục:
+•	🚨 LỖ HỔNG BẢO MẬT NGHIÊM TRỌNG (IDOR / Privilege Escalation): Việc bạn mở RoleId trong RegisterRequest để client truyền lên từ Combobox là cực kỳ nguy hiểm. Một người dùng bình thường hoàn toàn có thể dùng Postman hoặc chặn request để sửa {"roleId": 3} thành {"roleId": 1} để tự thăng cấp mình thành Administrator. 👉 Cách sửa: API Đăng ký công khai CHỈ ĐƯỢC PHÉP set cứng quyền Member (hoặc Researcher). Việc cấp quyền Administrator phải được thực hiện thông qua một API khác dành riêng cho Admin (ví dụ: FR Manage users).
+•	Thiếu Refresh Token: JWT của bạn đang fix cứng hết hạn sau 7 ngày. Nếu Token này bị lộ, hacker có 7 ngày để lộng hành. Thực tế người ta sẽ để JWT sống rất ngắn (15-30 phút) và dùng 1 RefreshToken (lưu trong DB) để xin lại JWT mới.
+•	Chưa có Email Verification: Bất kỳ ai cũng có thể nhập email rác (ví dụ: abc@gmail.com) để tạo tài khoản. Bạn nên cân nhắc thêm cờ IsEmailVerified và gửi email chứa mã OTP/Link để xác thực.
+•	Thiếu chức năng Quên mật khẩu (Forgot Password): Đây là must-have cho Web.
+•	Không có cơ chế Revoke Token (Thu hồi) / Đăng xuất: Người dùng ấn "Đăng xuất" ở frontend thực tế chỉ xóa token dưới LocalStorage. Token đó vẫn còn hiệu lực đối với Server trong 7 ngày nếu bị bắt lại. (Có thể làm Blacklist token lưu Redis, hoặc đơn giản nhất là làm Refresh Token như đề cập ở trên).
