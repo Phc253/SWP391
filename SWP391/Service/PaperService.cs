@@ -17,6 +17,7 @@ namespace SWP391.Service
         {
             var (papers, totalCount) = await _paperRepository.SearchPapersAsync(keyword, author, journal, page, pageSize);
 
+            // Format lại data cho Frontend dễ hiểu và tránh lộ hết các Entity mapping phức tạp
             var result = new
             {
                 TotalCount = totalCount,
