@@ -32,9 +32,11 @@ namespace SWP391.Service
                 var response = await _httpClient.GetAsync(url);
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError($"OpenAlex API failed with status code {response.StatusCode}");
+                    _logger.LogError("OpenAlex API failed with status code {Status}", response.StatusCode);
                     return 0;
                 }
+
+                _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
 
                 // Parse Json Data
                 var content = await response.Content.ReadAsStringAsync();
@@ -42,8 +44,11 @@ namespace SWP391.Service
 
                 if (data?.Results == null || !data.Results.Any())
                 {
+                    _logger.LogInformation("OpenAlex returned no results for keyword {Keyword}.", keyword);
                     return 0;
                 }
+
+                _logger.LogInformation("OpenAlex returned {Count} results for keyword {Keyword}.", data.Results.Count, keyword);
 
                 // 1. Kiểm tra / Tạo nguồn lấy dữ liệu trong DB giả định (ApiDataSource)
                 var source = await _dbContext.ApiDataSources.FirstOrDefaultAsync(s => s.SourceName == "OpenAlex");
@@ -67,7 +72,11 @@ namespace SWP391.Service
 
                     // 3. Chống trùng lặp (duplication): Kiểm tra xem hệ thống đã lưu bài này (dựa trên ExternalId) chưa
                     var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
-                    if (existingPaper != null) continue;
+                    if (existingPaper != null)
+                    {
+                        _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
+                        continue;
+                    }
 
                     // Tạo đối tượng Paper mới
                     var paper = new Paper
@@ -101,6 +110,7 @@ namespace SWP391.Service
 
                     _dbContext.Papers.Add(paper);
                     await _dbContext.SaveChangesAsync(); // Save early to get PaperId for relationships
+                    _logger.LogInformation("Saved Paper Id={PaperId} ExternalId={ExternalId} Title={Title}", paper.PaperId, paper.ExternalId, paper.Title);
 
                     // Handle Authors
                     if (work.Authorships != null)
@@ -144,6 +154,7 @@ namespace SWP391.Service
 
                     await _dbContext.SaveChangesAsync();
                     savedCount++;
+                    _logger.LogInformation("Total saved so far: {SavedCount}", savedCount);
                 }
 
                 return savedCount;
