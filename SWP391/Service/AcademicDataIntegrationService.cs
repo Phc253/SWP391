@@ -24,7 +24,9 @@ namespace SWP391.Service
         {
             try
             {
+                // Uri.EscapeDataString để đảm bảo các ký tự đặc biệt trong Keyword (nếu có khoảng trắng, @, &) không làm hỏng URL
                 var encodedKeyword = Uri.EscapeDataString(keyword);
+                // Call URL tìm kiếm các bài viết (works) dựa trên query 
                 var url = $"https://api.openalex.org/works?search={encodedKeyword}&per-page={maxResults}";
 
                 var response = await _httpClient.GetAsync(url);
@@ -34,6 +36,7 @@ namespace SWP391.Service
                     return 0;
                 }
 
+                // Parse Json Data
                 var content = await response.Content.ReadAsStringAsync();
                 var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -42,7 +45,7 @@ namespace SWP391.Service
                     return 0;
                 }
 
-                // Ensure OpenAlex ApiDataSource exists
+                // 1. Kiểm tra / Tạo nguồn lấy dữ liệu trong DB giả định (ApiDataSource)
                 var source = await _dbContext.ApiDataSources.FirstOrDefaultAsync(s => s.SourceName == "OpenAlex");
                 if (source == null)
                 {
@@ -59,24 +62,25 @@ namespace SWP391.Service
                 int savedCount = 0;
                 foreach (var work in data.Results)
                 {
-                    // Basic validation
+                    // 2. Lọc cơ bản: Bỏ qua những bài rác không có tiêu đề
                     if (string.IsNullOrWhiteSpace(work.Title)) continue;
 
-                    // Check if paper already exists
+                    // 3. Chống trùng lặp (duplication): Kiểm tra xem hệ thống đã lưu bài này (dựa trên ExternalId) chưa
                     var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
                     if (existingPaper != null) continue;
 
+                    // Tạo đối tượng Paper mới
                     var paper = new Paper
                     {
                         Title = work.Title,
-                        Abstract = BuildAbstract(work.AbstractInvertedIndex),
+                        Abstract = BuildAbstract(work.AbstractInvertedIndex), // Parse chuỗi abstract
                         PublicationYear = work.PublicationYear,
                         ExternalId = work.Id,
                         SourceId = source.SourceId,
                         CreatedAt = DateTime.UtcNow
                     };
 
-                    // Handle Journal
+                    // 4. Handle Journal: Lưu thông tin Journal/Tạp chí nếu bài có chứa thông tin Journal
                     var sourceData = work.PrimaryLocation?.Source;
                     if (sourceData != null && !string.IsNullOrWhiteSpace(sourceData.DisplayName))
                     {
@@ -151,6 +155,9 @@ namespace SWP391.Service
             }
         }
 
+        // Phương thức này có tác dụng giải mã abstract_inverted_index trả về từ API OpenAlex.
+        // API OpenAlex không trả về chuỗi văn bản thông thường cho Abstract mà dùng Index để tiết kiệm dung lượng.
+        // Ex: {"keyword": [0,5], "technology": [1]} sẽ dịch lại thành thứ tự các từ dưa trên index.
         private string BuildAbstract(Dictionary<string, List<int>>? invertedIndex)
         {
             if (invertedIndex == null || !invertedIndex.Any()) return string.Empty;
