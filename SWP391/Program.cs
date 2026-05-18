@@ -75,6 +75,8 @@ namespace SWP391
             builder.Services.AddScoped<AccountService>();
             builder.Services.AddScoped<PaperRepository>();
             builder.Services.AddScoped<PaperService>();
+            builder.Services.AddScoped<TrendRepository>();
+            builder.Services.AddScoped<TrendService>();
             builder.Services.AddScoped<AcademicDataIntegrationService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
