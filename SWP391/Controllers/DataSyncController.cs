@@ -19,7 +19,8 @@ namespace SWP391.Controllers
         // API này dùng để đồng bộ dữ liệu (cào bài báo) từ API OpenAlex. 
         // VD: POST /api/datasync/sync-openalex?keyword=Computer Science&maxResults=20
         // Tạm thời endpoint không yêu cầu Admin hoặc Authorize cứng để bạn dễ test
-        // Sau này có thiết lập role hoàn chỉnh có thể mở lại: [Authorize(Roles = "Admin")]
+        // Sau này có thiết lập role hoàn chỉnh có thể mở lại:
+        // [Authorize(Roles = "Admin")]
         [HttpPost("sync-openalex")]
         public async Task<IActionResult> SyncOpenAlex(string keyword = "Computer Science", int maxResults = 20)
         {
