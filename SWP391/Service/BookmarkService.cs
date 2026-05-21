@@ -59,10 +59,49 @@ namespace SWP391.Service
             }
         }
 
-        public async Task<ServiceResult<List<Bookmark>>> GetUserBookmarksAsync(int userId)
+        public async Task<ServiceResult<List<BookmarkItemResponse>>> GetUserBookmarksAsync(int userId)
         {
             var bookmarks = await _bookmarkRepository.GetUserBookmarksAsync(userId);
-            return ServiceResult<List<Bookmark>>.Ok(bookmarks);
+            var resultList = new List<BookmarkItemResponse>();
+
+            // Tách các Type ra để query dữ liệu gốc (tránh N+1)
+            var paperIds = bookmarks.Where(b => b.TargetType.Equals("Paper", StringComparison.OrdinalIgnoreCase))
+                                    .Select(b => b.TargetId)
+                                    .ToList();
+
+            var papers = new List<Paper>();
+            if (paperIds.Any())
+            {
+                papers = await _paperRepository.GetPapersByIdsAsync(paperIds);
+            }
+
+            foreach (var b in bookmarks)
+            {
+                var item = new BookmarkItemResponse
+                {
+                    BookmarkId = b.BookmarkId,
+                    TargetId = b.TargetId,
+                    TargetType = b.TargetType,
+                    CreatedAt = b.CreatedAt
+                };
+
+                if (b.TargetType.Equals("Paper", StringComparison.OrdinalIgnoreCase))
+                {
+                    var paper = papers.FirstOrDefault(p => p.PaperId == b.TargetId);
+                    if (paper != null)
+                    {
+                        item.Title = paper.Title;
+                        item.Abstract = paper.Abstract;
+                        item.PublicationYear = paper.PublicationYear;
+                        item.JournalName = paper.Journal?.JournalName;
+                        item.Authors = paper.Authors.Select(a => a.AuthorName).ToList();
+                    }
+                }
+                
+                resultList.Add(item);
+            }
+
+            return ServiceResult<List<BookmarkItemResponse>>.Ok(resultList);
         }
     }
 }
