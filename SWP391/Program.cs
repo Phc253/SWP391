@@ -78,6 +78,8 @@ namespace SWP391
             builder.Services.AddScoped<TrendRepository>();
             builder.Services.AddScoped<TrendService>();
             builder.Services.AddScoped<AcademicDataIntegrationService>();
+            builder.Services.AddScoped<BookmarkRepository>();
+            builder.Services.AddScoped<BookmarkService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
