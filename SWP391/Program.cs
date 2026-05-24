@@ -80,6 +80,10 @@ namespace SWP391
             builder.Services.AddScoped<AcademicDataIntegrationService>();
             builder.Services.AddScoped<BookmarkRepository>();
             builder.Services.AddScoped<BookmarkService>();
+            builder.Services.AddScoped<AuthorRepository>();
+            builder.Services.AddScoped<AuthorService>();
+            builder.Services.AddScoped<FollowRepository>();
+            builder.Services.AddScoped<FollowService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
