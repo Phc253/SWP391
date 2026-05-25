@@ -12,5 +12,8 @@ namespace SWP391.Models.Follow
         // Enrichment: Thông tin đi kèm
         public string? AuthorName { get; set; }
         public int? PaperCount { get; set; }
+
+        public string? JournalName { get; set; }
+        public string? TopicName { get; set; }
     }
 }

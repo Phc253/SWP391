@@ -20,7 +20,7 @@ namespace SWP391.Service
             _logger = logger;
         }
 
-        public async Task<int> FetchAndSaveDataFromOpenAlexAsync(string keyword = "Computer Science", int maxResults = 50)
+        public async Task<int> FetchAndSaveDataFromOpenAlexAsync(string keyword = "Computer Science", int maxResults = 40)
         {
             try
             {
@@ -134,21 +134,48 @@ namespace SWP391.Service
                     }
 
                     // Handle Keywords/Concepts
-                    if (work.Concepts != null)
+                    if (work.Concepts != null && work.Concepts.Any())
                     {
-                        foreach (var concept in work.Concepts.Take(5)) // Take top 5 keywords based on relevance score if sorted
+                        var sortedConcepts = work.Concepts.OrderByDescending(c => c.Score).ToList();
+
+                        // 1. Tìm Research Topic (Concept ở Level 0 hoặc 1, độ bao phủ lớn nhất)
+                        var topicConcept = sortedConcepts.FirstOrDefault(c => c.Level <= 1 && !string.IsNullOrWhiteSpace(c.DisplayName));
+                        ResearchTopic? currentTopic = null;
+
+                        if (topicConcept != null)
                         {
-                            if (!string.IsNullOrWhiteSpace(concept.DisplayName))
+                            currentTopic = await _dbContext.ResearchTopics.FirstOrDefaultAsync(t => t.TopicName == topicConcept.DisplayName);
+                            if (currentTopic == null)
                             {
-                                var keywordEntity = await _dbContext.Keywords.FirstOrDefaultAsync(k => k.KeywordText == concept.DisplayName);
-                                if (keywordEntity == null)
-                                {
-                                    keywordEntity = new Keyword { KeywordText = concept.DisplayName };
-                                    _dbContext.Keywords.Add(keywordEntity);
-                                    await _dbContext.SaveChangesAsync();
-                                }
-                                paper.Keywords.Add(keywordEntity);
+                                currentTopic = new ResearchTopic { TopicName = topicConcept.DisplayName };
+                                _dbContext.ResearchTopics.Add(currentTopic);
+                                await _dbContext.SaveChangesAsync(); // Lưu để lấy ID
                             }
+                        }
+
+                        // 2. Tìm Keywords (Concept ở Level >= 2, chuyên ngành hẹp hơn)
+                        var keywordConcepts = sortedConcepts.Where(c => c.Level >= 2 && !string.IsNullOrWhiteSpace(c.DisplayName)).Take(5);
+                        foreach (var concept in keywordConcepts)
+                        {
+                            var keywordEntity = await _dbContext.Keywords.FirstOrDefaultAsync(k => k.KeywordText == concept.DisplayName);
+                            if (keywordEntity == null)
+                            {
+                                keywordEntity = new Keyword 
+                                { 
+                                    KeywordText = concept.DisplayName,
+                                    TopicId = currentTopic?.TopicId // Link tới Topic cha!
+                                };
+                                _dbContext.Keywords.Add(keywordEntity);
+                                await _dbContext.SaveChangesAsync();
+                            }
+                            else if (keywordEntity.TopicId == null && currentTopic != null)
+                            {
+                                // Cập nhật TopicId nếu trước đó từ khoá này bị null TopicId
+                                keywordEntity.TopicId = currentTopic.TopicId;
+                                await _dbContext.SaveChangesAsync();
+                            }
+
+                            paper.Keywords.Add(keywordEntity);
                         }
                     }
 
