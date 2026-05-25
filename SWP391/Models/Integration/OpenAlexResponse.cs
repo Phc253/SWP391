@@ -96,5 +96,8 @@ namespace SWP391.Models.Integration
         
         [JsonPropertyName("score")]
         public float Score { get; set; }
+
+        [JsonPropertyName("level")]
+        public int Level { get; set; }
     }
 }

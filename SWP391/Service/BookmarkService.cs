@@ -9,23 +9,31 @@ namespace SWP391.Service
     {
         private readonly BookmarkRepository _bookmarkRepository;
         private readonly PaperRepository _paperRepository;
+        private readonly TrendRepository _trendRepository;
 
-        public BookmarkService(BookmarkRepository bookmarkRepository, PaperRepository paperRepository)
+        public BookmarkService(BookmarkRepository bookmarkRepository, PaperRepository paperRepository, TrendRepository trendRepository)
         {
             _bookmarkRepository = bookmarkRepository;
             _paperRepository = paperRepository;
+            _trendRepository = trendRepository;
         }
 
         public async Task<ServiceResult<bool>> ToggleBookmarkAsync(int userId, ToggleBookmarkRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.TargetType))
             {
-                return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Paper').");
+                return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Paper' or 'Keyword').");
             }
 
             var type = request.TargetType.Trim();
 
-            // [BƯỚC 1]: Kiểm tra xem bài báo (hoặc đối tượng khác) mà người dùng muốn lưu có thật sự tồn tại trong hệ thống hay không (Validate Target Exists)
+            // Chỉ cho phép "Paper" hoặc "Keyword"
+            if (!type.Equals("Paper", StringComparison.OrdinalIgnoreCase) && !type.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+            {
+                return ServiceResult<bool>.Fail("Invalid TargetType. Supported types are 'Paper' and 'Keyword'.");
+            }
+
+            // [BƯỚC 1]: Kiểm tra xem đối tượng mà người dùng muốn lưu có thật sự tồn tại trong hệ thống hay không (Validate Target Exists)
             if (type.Equals("Paper", StringComparison.OrdinalIgnoreCase))
             {
                 var paper = await _paperRepository.GetPaperByIdAsync(request.TargetId);
@@ -34,7 +42,16 @@ namespace SWP391.Service
                     return ServiceResult<bool>.Fail("Paper not found.");
                 }
             }
-            // (Bạn có thể mở rộng logic kiểm tra "Keyword", "Journal" tại đây nếu cần)
+            else if (type.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+            {
+                // Ép kiểu xuồng int vì KeywordId là int
+                int keywordId = (int)request.TargetId;
+                var keyword = await _trendRepository.GetKeywordByIdAsync(keywordId);
+                if (keyword == null)
+                {
+                    return ServiceResult<bool>.Fail("Keyword not found.");
+                }
+            }
 
             // [BƯỚC 2]: Kiểm tra trong CSDL xem record bookmark (của User + Target) này đã tồn tại chưa
             var existingBookmark = await _bookmarkRepository.GetBookmarkAsync(userId, request.TargetId, type);
@@ -69,10 +86,20 @@ namespace SWP391.Service
                                     .Select(b => b.TargetId)
                                     .ToList();
 
+            var keywordIds = bookmarks.Where(b => b.TargetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                                      .Select(b => (int)b.TargetId)
+                                      .ToList();
+
             var papers = new List<Paper>();
             if (paperIds.Any())
             {
                 papers = await _paperRepository.GetPapersByIdsAsync(paperIds);
+            }
+
+            var keywords = new List<Keyword>();
+            if (keywordIds.Any())
+            {
+                keywords = await _trendRepository.GetKeywordsByIdsAsync(keywordIds);
             }
 
             foreach (var b in bookmarks)
@@ -95,6 +122,14 @@ namespace SWP391.Service
                         item.PublicationYear = paper.PublicationYear;
                         item.JournalName = paper.Journal?.JournalName;
                         item.Authors = paper.Authors.Select(a => a.AuthorName).ToList();
+                    }
+                }
+                else if (b.TargetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                {
+                    var keyword = keywords.FirstOrDefault(k => k.KeywordId == (int)b.TargetId);
+                    if (keyword != null)
+                    {
+                        item.KeywordText = keyword.KeywordText;
                     }
                 }
                 

@@ -16,5 +16,8 @@ namespace SWP391.Models.Bookmark
         public int? PublicationYear { get; set; }
         public string? JournalName { get; set; }
         public List<string> Authors { get; set; } = new List<string>();
+
+        // Thông tin hiển thị cho Keyword
+        public string? KeywordText { get; set; }
     }
 }
