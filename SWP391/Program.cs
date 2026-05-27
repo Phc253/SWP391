@@ -3,6 +3,10 @@ using SWP391.Entities;
 using SWP391.Middlewares;
 using SWP391.Repositories;
 using SWP391.Service;
+using SWP391.Models.Dashboard;
+using SWP391.Models.Report;
+using SWP391.Models.Admin;
+using SWP391.Models.Notification;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -78,6 +82,13 @@ namespace SWP391
             builder.Services.AddScoped<TrendRepository>();
             builder.Services.AddScoped<TrendService>();
             builder.Services.AddScoped<AcademicDataIntegrationService>();
+            builder.Services.AddScoped<DashboardRepository>();
+            builder.Services.AddScoped<DashboardService>();
+            builder.Services.AddScoped<ReportService>();
+            builder.Services.AddScoped<NotificationRepository>();
+            builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<AdminRepository>();
+            builder.Services.AddScoped<AdminService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
