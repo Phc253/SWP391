@@ -4,3 +4,13 @@ GET {{SWP391_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+GET {{SWP391_HostAddress}}/api/Trends/keyword?keywordText=Computer%20Science
+Accept: application/json
+
+###
+
+GET {{SWP391_HostAddress}}/api/Trends/trending?topN=5
+Accept: application/json
+
+###
