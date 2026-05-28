@@ -19,8 +19,8 @@ View paper details and publication information
 Track publication trends by keyword or topic
 Display charts and dashboard statistics
 View trending research topics
-Save bookmarks for papers or keywords
-Follow journals or research topics
+//Save bookmarks for papers or keywords
+//Follow journals or research topics
 Receive notifications for newly published papers
 Generate simple analytical reports
 Synchronize data from external academic APIs

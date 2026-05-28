@@ -65,5 +65,16 @@ namespace SWP391.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.PaperId == id);
         }
+
+        // Lấy danh sách nhiều bài báo dựa vào List IDs (Hỗ trợ cho tính năng My Library/Bookmarks)
+        public async Task<List<Paper>> GetPapersByIdsAsync(IEnumerable<long> ids)
+        {
+            return await _dbContext.Papers
+                .Include(p => p.Journal)
+                .Include(p => p.Authors)
+                .Where(p => ids.Contains(p.PaperId))
+                .AsNoTracking()
+                .ToListAsync();
+        }
     }
 }

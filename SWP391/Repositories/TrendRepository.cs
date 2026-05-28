@@ -17,6 +17,16 @@ namespace SWP391.Repositories
             _dbContext = dbContext;
         }
 
+        public async Task<Keyword?> GetKeywordByIdAsync(int keywordId)
+        {
+            return await _dbContext.Keywords.FindAsync(keywordId);
+        }
+
+        public async Task<List<Keyword>> GetKeywordsByIdsAsync(IEnumerable<int> keywordIds)
+        {
+            return await _dbContext.Keywords.Where(k => keywordIds.Contains(k.KeywordId)).ToListAsync();
+        }
+
         // FR5: Track publication trends by keyword
         public async Task<List<TrendChartResponse>> GetTrendByKeywordAsync(string keywordText)
         {
