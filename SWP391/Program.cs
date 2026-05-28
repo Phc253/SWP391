@@ -20,7 +20,7 @@ namespace SWP391
         {
             var builder = WebApplication.CreateBuilder(args);
             // CORS for the Frontend
-            builder.Services.AddCors(options =>
+            builder.Services.AddCors(options => 
             {
                 options.AddDefaultPolicy(policy =>
                 {
