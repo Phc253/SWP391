@@ -20,7 +20,7 @@ namespace SWP391
         {
             var builder = WebApplication.CreateBuilder(args);
             // CORS for the Frontend
-            builder.Services.AddCors(options =>
+            builder.Services.AddCors(options => 
             {
                 options.AddDefaultPolicy(policy =>
                 {
@@ -82,6 +82,7 @@ namespace SWP391
             builder.Services.AddScoped<TrendRepository>();
             builder.Services.AddScoped<TrendService>();
             builder.Services.AddScoped<AcademicDataIntegrationService>();
+            builder.Services.AddScoped<DataSyncService>();
             builder.Services.AddScoped<DashboardRepository>();
             builder.Services.AddScoped<DashboardService>();
             builder.Services.AddScoped<ReportService>();
