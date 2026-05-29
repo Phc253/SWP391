@@ -82,6 +82,7 @@ namespace SWP391
             builder.Services.AddScoped<TrendRepository>();
             builder.Services.AddScoped<TrendService>();
             builder.Services.AddScoped<AcademicDataIntegrationService>();
+            builder.Services.AddScoped<DataSyncService>();
             builder.Services.AddScoped<DashboardRepository>();
             builder.Services.AddScoped<DashboardService>();
             builder.Services.AddScoped<ReportService>();
