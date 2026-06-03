@@ -45,5 +45,30 @@ namespace SWP391.Repositories
             await _dbContext.SaveChangesAsync();
             return user;
         }
+
+        public async Task AddEmailVerificationTokenAsync(EmailVerificationToken token)
+        {
+            _dbContext.EmailVerificationTokens.Add(token);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public Task<EmailVerificationToken?> GetValidEmailVerificationTokenAsync(string tokenHash)
+        {
+            var now = DateTime.UtcNow;
+
+            return _dbContext.EmailVerificationTokens
+                .Include(t => t.User)
+                .FirstOrDefaultAsync(t =>
+                    t.TokenHash == tokenHash &&
+                    t.UsedAt == null &&
+                    t.ExpiresAt > now);
+        }
+
+        public async Task MarkEmailVerifiedAsync(EmailVerificationToken token)
+        {
+            token.UsedAt = DateTime.UtcNow;
+            token.User.IsActive = true;
+            await _dbContext.SaveChangesAsync();
+        }
     }
 }

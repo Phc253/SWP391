@@ -21,6 +21,8 @@ public partial class ScientificTrendDbContext : DbContext
 
     public virtual DbSet<Bookmark> Bookmarks { get; set; }
 
+    public virtual DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
+
     public virtual DbSet<Follow> Follows { get; set; }
 
     public virtual DbSet<Journal> Journals { get; set; }
@@ -89,6 +91,22 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Bookmarks)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK__Bookmarks__UserI__4F7CD00D");
+        });
+
+        modelBuilder.Entity<EmailVerificationToken>(entity =>
+        {
+            entity.HasKey(e => e.EmailVerificationTokenId);
+
+            entity.HasIndex(e => e.TokenHash, "IX_EmailVerificationTokens_TokenHash");
+
+            entity.HasIndex(e => new { e.UserId, e.UsedAt }, "IX_EmailVerificationTokens_User_UsedAt");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.TokenHash).HasMaxLength(255);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Follow>(entity =>
@@ -257,10 +275,12 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasIndex(e => e.Email, "UQ__Users__A9D105340115A41D").IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.DateOfBirth).HasColumnType("date");
             entity.Property(e => e.Email).HasMaxLength(255);
             entity.Property(e => e.FullName).HasMaxLength(150);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.PasswordHash).HasMaxLength(255);
+            entity.Property(e => e.PhoneNumber).HasMaxLength(20);
 
             entity.HasMany(d => d.Roles).WithMany(p => p.Users)
                 .UsingEntity<Dictionary<string, object>>(

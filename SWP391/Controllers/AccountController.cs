@@ -40,6 +40,18 @@ namespace SWP391.Controllers
             return Ok(result.Data);
         }
 
+        [HttpGet("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+        {
+            var result = await _accountServices.VerifyEmailAsync(token);
+            if (!result.Success)
+            {
+                return BadRequest(new { message = result.Error });
+            }
+
+            return Ok(new { message = result.Data });
+        }
+
         // [MỚI] Đây là API Test việc Protect tài nguyên bằng JWT
         [HttpGet("profile")]
         [Microsoft.AspNetCore.Authorization.Authorize] // Bắt buộc phải có Token hợp lệ để chạy được
