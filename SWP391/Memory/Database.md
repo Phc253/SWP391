@@ -33,8 +33,23 @@ CREATE TABLE Users (
     Email NVARCHAR(255) NOT NULL UNIQUE,
     PasswordHash NVARCHAR(255) NOT NULL,
     FullName NVARCHAR(150),
+    DateOfBirth DATE NULL,
+    PhoneNumber NVARCHAR(20),
     CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
     IsActive BIT DEFAULT 1
+);
+
+CREATE TABLE EmailVerificationTokens (
+    EmailVerificationTokenId BIGINT IDENTITY PRIMARY KEY,
+    UserId INT NOT NULL,
+    TokenHash NVARCHAR(255) NOT NULL,
+    ExpiresAt DATETIME2 NOT NULL,
+    CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
+    UsedAt DATETIME2 NULL,
+
+    FOREIGN KEY (UserId)
+        REFERENCES Users(UserId)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE UserRoles (
@@ -273,5 +288,11 @@ ON Follows(UserId);
 
 CREATE INDEX IX_Notifications_User
 ON Notifications(UserId, IsRead);
+
+CREATE INDEX IX_EmailVerificationTokens_TokenHash
+ON EmailVerificationTokens(TokenHash);
+
+CREATE INDEX IX_EmailVerificationTokens_User_UsedAt
+ON EmailVerificationTokens(UserId, UsedAt);
 
 GO

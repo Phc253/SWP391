@@ -23,7 +23,7 @@ View trending research topics
 //Follow journals or research topics
 Receive notifications for newly published papers
 Generate simple analytical reports
-Synchronize data from external academic APIs
+Synchronize data from external academic APIs (include citation for trending)
 Manage users and system configuration (Admin)"""
 
 Main Entities: 
@@ -40,8 +40,11 @@ Dashboard Report
 API Data Source"
 
 Notes : "- Hệ thống sử dụng dữ liệu công khai từ các nguồn học thuật như Semantic Scholar, OpenAlex hoặc Crossref thông qua API miễn phí.
+- Login cần thêm các trường thông tin như số điện thoại, địa chỉ, ... (sẽ có xác thực bằng gmail)
 - Chỉ thu thập metadata của bài báo, bao gồm: tiêu đề, abstract, keywords, năm xuất bản, tác giả và journal.
+- không cần lấy html hay pdf gốc của bài báo
 - Không xử lý toàn văn (full-text) của bài báo do giới hạn bản quyền và dung lượng dữ liệu.
 - Dữ liệu được giả định là hợp lệ, có cấu trúc thống nhất và luôn khả dụng từ API bên thứ ba.
 - Hệ thống chỉ phân tích dữ liệu thuộc một số lĩnh vực được chọn trước (ví dụ: Computer Science hoặc AI) để giảm độ phức tạp.
 - Tần suất cập nhật dữ liệu được giả định theo chu kỳ định kỳ (ví dụ: mỗi ngày hoặc mỗi tuần), không yêu cầu realtime."""
+- Có khoảng thời gian để đồng bộ dữ liệu với nguồn dữ liệu (VD: citation của bài báo A lúc 10 giờ là 3,000 nhưng sau 2 tiếng đã tăng lên 3,500 => hệ thống sẽ đồng bộ lại dữ liệu)
