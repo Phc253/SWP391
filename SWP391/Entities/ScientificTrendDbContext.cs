@@ -37,6 +37,8 @@ public partial class ScientificTrendDbContext : DbContext
 
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
 
+    public virtual DbSet<TrendSnapshot> TrendSnapshots { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<SyncJob> SyncJobs { get; set; }
@@ -239,6 +241,29 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasIndex(e => e.TopicName, "UQ__Research__6C795E8C662E12F0").IsUnique();
 
             entity.Property(e => e.TopicName).HasMaxLength(150);
+        });
+
+        modelBuilder.Entity<TrendSnapshot>(entity =>
+        {
+            entity.HasKey(e => e.SnapshotId);
+
+            entity.HasIndex(e => e.SnapshotDate, "IX_TrendSnapshots_Date");
+
+            entity.HasIndex(e => new { e.KeywordId, e.SnapshotDate }, "IX_TrendSnapshots_Keyword_Date");
+
+            entity.HasIndex(e => new { e.TopicId, e.SnapshotDate }, "IX_TrendSnapshots_Topic_Date");
+
+            entity.Property(e => e.SnapshotDate).HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.Keyword)
+                .WithMany()
+                .HasForeignKey(d => d.KeywordId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.Topic)
+                .WithMany()
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Role>(entity =>
