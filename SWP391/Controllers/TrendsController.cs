@@ -107,9 +107,8 @@ namespace SWP391.Controllers
         }
 
         // POST: api/trends/compute-trends  [AdminOnly]
-        // Materializes live paper counts into the PublicationTrends cache table.
-        // Run this after a data sync to refresh cached trend data.
-        // Returns a 500 on failure (it is a server-side operation, not a client input error).
+        // Materializes live paper counts into the PublicationTrends cache table and writes
+        // a TrendSnapshot row per keyword/topic. Run after a data sync to refresh trend data.
         [HttpPost("compute-trends")]
         [Authorize(Policy = "AdminOnly")]
         public async Task<IActionResult> ComputeTrends()
@@ -117,6 +116,40 @@ namespace SWP391.Controllers
             var result = await _trendService.ComputeTrendsAsync();
             if (!result.Success)
                 return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // GET: api/trends/snapshot-history?keywordText=AI&days=30
+        // Returns the TrendSnapshot history for a keyword ordered oldest to newest.
+        [HttpGet("snapshot-history")]
+        public async Task<IActionResult> GetSnapshotHistory(
+            [FromQuery] string keywordText,
+            [FromQuery] int days = 30)
+        {
+            if (string.IsNullOrWhiteSpace(keywordText))
+                return BadRequest("keywordText is required.");
+
+            var result = await _trendService.GetSnapshotHistoryAsync(keywordText, days);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // GET: api/trends/topic-snapshot-history?topicName=MachineLearning&days=30
+        // Returns the TrendSnapshot history for a ResearchTopic ordered oldest to newest.
+        [HttpGet("topic-snapshot-history")]
+        public async Task<IActionResult> GetTopicSnapshotHistory(
+            [FromQuery] string topicName,
+            [FromQuery] int days = 30)
+        {
+            if (string.IsNullOrWhiteSpace(topicName))
+                return BadRequest("topicName is required.");
+
+            var result = await _trendService.GetTopicSnapshotHistoryAsync(topicName, days);
+            if (!result.Success)
+                return BadRequest(result);
 
             return Ok(result.Data);
         }

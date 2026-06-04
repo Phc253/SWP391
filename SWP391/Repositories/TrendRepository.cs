@@ -8,6 +8,18 @@ namespace SWP391.Repositories
     // Not a public API response model — kept here to avoid polluting Models/Trend/.
     public record ActivityRawData(string Name, int RecentPaperCount, int BaselinePaperCount);
 
+    // Extended record for the enhanced trend score that incorporates citations and momentum.
+    public record EnhancedActivityRawData(
+        string Name,
+        int? KeywordId,
+        int? TopicId,
+        int TotalPaperCount,
+        int RecentPaperCount,
+        int BaselinePaperCount,
+        int PriorPaperCount,
+        int TotalRecentCitations
+    );
+
     public class TrendRepository
     {
         private readonly ScientificTrendDbContext _dbContext;
@@ -131,17 +143,19 @@ namespace SWP391.Repositories
         }
 
         // FR-NEW-4: Raw data needed to compute Research Activity Score in the service layer.
-        // RecentPaperCount = last 3 years (for volume component of score).
-        // BaselinePaperCount = single year 3 years ago (for growth/momentum component).
-        // Over-fetches topN * 3 because score-order differs from raw-count-order after applying
-        // the growth weight — ensures the true top-N are not missed before re-ranking.
+        // Uses client-side evaluation (AsEnumerable) because EF Core cannot translate
+        // a record constructor with multiple correlated subqueries into SQL.
         public async Task<List<ActivityRawData>> GetRawActivityDataAsync(int topN)
         {
             int currentYear = DateTime.Now.Year;
-            int recentStart = currentYear - 2;   // last 3 years inclusive (currentYear-2, -1, 0)
-            int baselineYear = currentYear - 3;  // single year used as the growth baseline
+            int recentStart  = currentYear - 2;
+            int baselineYear = currentYear - 3;
 
-            return await _dbContext.Keywords
+            var keywords = await _dbContext.Keywords
+                .Include(k => k.Papers)
+                .ToListAsync();
+
+            return keywords
                 .Select(k => new ActivityRawData(
                     k.KeywordText,
                     k.Papers.Count(p => p.PublicationYear.HasValue && p.PublicationYear.Value >= recentStart),
@@ -150,7 +164,7 @@ namespace SWP391.Repositories
                 .Where(x => x.RecentPaperCount > 0)
                 .OrderByDescending(x => x.RecentPaperCount)
                 .Take(topN * 3)
-                .ToListAsync();
+                .ToList();
         }
 
         // FR-NEW-5: Materialize keyword-level trends into the PublicationTrends table.
@@ -262,6 +276,129 @@ namespace SWP391.Repositories
 
             await _dbContext.SaveChangesAsync();
             return written;
+        }
+
+        // Returns raw data for keywords needed to compute the enhanced trend score.
+        // Uses client-side evaluation (AsEnumerable) because EF Core cannot translate
+        // multiple correlated subqueries inside a record constructor into a single SQL query.
+        public async Task<List<EnhancedActivityRawData>> GetEnhancedActivityDataAsync()
+        {
+            int cur = DateTime.Now.Year;
+            int recentStart  = cur - 2;
+            int baselineYear = cur - 3;
+            int priorYear    = cur - 4;
+
+            var keywords = await _dbContext.Keywords
+                .Include(k => k.Papers)
+                .ToListAsync();
+
+            return keywords
+                .Select(k =>
+                {
+                    var papers = k.Papers.Where(p => p.PublicationYear.HasValue).ToList();
+                    int recentCount   = papers.Count(p => p.PublicationYear!.Value >= recentStart);
+                    int baselineCount = papers.Count(p => p.PublicationYear!.Value == baselineYear);
+                    int priorCount    = papers.Count(p => p.PublicationYear!.Value == priorYear);
+                    int recentCits    = papers.Where(p => p.PublicationYear!.Value >= recentStart)
+                                              .Sum(p => p.CitationCount ?? 0);
+                    return new EnhancedActivityRawData(
+                        k.KeywordText, k.KeywordId, null,
+                        papers.Count, recentCount, baselineCount, priorCount, recentCits
+                    );
+                })
+                .Where(x => x.RecentPaperCount > 0)
+                .ToList();
+        }
+
+        // Same as GetEnhancedActivityDataAsync but scoped to ResearchTopics.
+        // Deduplicates papers shared across keywords within the same topic.
+        public async Task<List<EnhancedActivityRawData>> GetEnhancedTopicActivityDataAsync()
+        {
+            int cur = DateTime.Now.Year;
+            int recentStart  = cur - 2;
+            int baselineYear = cur - 3;
+            int priorYear    = cur - 4;
+
+            var topics = await _dbContext.ResearchTopics
+                .Include(t => t.Keywords)
+                    .ThenInclude(k => k.Papers)
+                .ToListAsync();
+
+            return topics
+                .Select(t =>
+                {
+                    var papers = t.Keywords
+                        .SelectMany(k => k.Papers)
+                        .Where(p => p.PublicationYear.HasValue)
+                        .GroupBy(p => p.PaperId)
+                        .Select(g => g.First())
+                        .ToList();
+
+                    int recentCount   = papers.Count(p => p.PublicationYear!.Value >= recentStart);
+                    int baselineCount = papers.Count(p => p.PublicationYear!.Value == baselineYear);
+                    int priorCount    = papers.Count(p => p.PublicationYear!.Value == priorYear);
+                    int recentCits    = papers.Where(p => p.PublicationYear!.Value >= recentStart)
+                                              .Sum(p => p.CitationCount ?? 0);
+                    return new EnhancedActivityRawData(
+                        t.TopicName, null, t.TopicId,
+                        papers.Count, recentCount, baselineCount, priorCount, recentCits
+                    );
+                })
+                .Where(x => x.RecentPaperCount > 0)
+                .ToList();
+        }
+
+        // Bulk-inserts snapshot rows in a single SaveChangesAsync call.
+        public async Task WriteSnapshotsAsync(IEnumerable<TrendSnapshot> snapshots)
+        {
+            _dbContext.TrendSnapshots.AddRange(snapshots);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        public async Task<List<TrendSnapshotResponse>> GetSnapshotHistoryByKeywordAsync(
+            string keywordText, int days)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-days);
+            return await _dbContext.TrendSnapshots
+                .Where(s => s.KeywordId.HasValue
+                         && s.Keyword!.KeywordText == keywordText
+                         && s.SnapshotDate >= cutoff)
+                .OrderBy(s => s.SnapshotDate)
+                .Select(s => new TrendSnapshotResponse
+                {
+                    SnapshotId       = s.SnapshotId,
+                    SnapshotDate     = s.SnapshotDate,
+                    TrendScore       = s.TrendScore,
+                    GrowthRate       = s.GrowthRate,
+                    Momentum         = s.Momentum,
+                    CitationVelocity = s.CitationVelocity,
+                    PaperCount       = s.PaperCount,
+                    RecentPaperCount = s.RecentPaperCount
+                })
+                .ToListAsync();
+        }
+
+        public async Task<List<TrendSnapshotResponse>> GetSnapshotHistoryByTopicAsync(
+            string topicName, int days)
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-days);
+            return await _dbContext.TrendSnapshots
+                .Where(s => s.TopicId.HasValue
+                         && s.Topic!.TopicName == topicName
+                         && s.SnapshotDate >= cutoff)
+                .OrderBy(s => s.SnapshotDate)
+                .Select(s => new TrendSnapshotResponse
+                {
+                    SnapshotId       = s.SnapshotId,
+                    SnapshotDate     = s.SnapshotDate,
+                    TrendScore       = s.TrendScore,
+                    GrowthRate       = s.GrowthRate,
+                    Momentum         = s.Momentum,
+                    CitationVelocity = s.CitationVelocity,
+                    PaperCount       = s.PaperCount,
+                    RecentPaperCount = s.RecentPaperCount
+                })
+                .ToListAsync();
         }
     }
 }
