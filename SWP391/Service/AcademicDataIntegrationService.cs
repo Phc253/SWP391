@@ -74,6 +74,8 @@ namespace SWP391.Service
                     var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
                     if (existingPaper != null)
                     {
+                        existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
+                        await _dbContext.SaveChangesAsync();
                         _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
                         continue;
                     }
@@ -84,6 +86,7 @@ namespace SWP391.Service
                         Title = work.Title,
                         Abstract = BuildAbstract(work.AbstractInvertedIndex), // Parse chuỗi abstract
                         PublicationYear = work.PublicationYear,
+                        CitationCount = work.CitationCount,
                         ExternalId = work.Id,
                         SourceId = source.SourceId,
                         CreatedAt = DateTime.UtcNow

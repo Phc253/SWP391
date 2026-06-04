@@ -52,6 +52,7 @@ namespace SWP391.Service
                     PaperId         = p.PaperId,
                     Title           = p.Title,
                     PublicationYear = p.PublicationYear,
+                    CitationCount   = p.CitationCount,
                     JournalName     = p.Journal?.JournalName,
                     Keywords        = p.Keywords.Select(k => k.KeywordText).ToList(),
                     Authors         = p.Authors.Select(a => a.AuthorName).ToList()

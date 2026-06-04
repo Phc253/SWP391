@@ -55,6 +55,7 @@ namespace SWP391.Service
                     PaperId = p.PaperId,
                     Title = p.Title,
                     PublicationYear = p.PublicationYear,
+                    CitationCount = p.CitationCount,
                     JournalName = p.Journal?.JournalName
                 }).OrderByDescending(p => p.PublicationYear).ToList()
             };
