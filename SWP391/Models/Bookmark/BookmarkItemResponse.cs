@@ -14,6 +14,7 @@ namespace SWP391.Models.Bookmark
         public string? Title { get; set; }
         public string? Abstract { get; set; }
         public int? PublicationYear { get; set; }
+        public int? CitationCount { get; set; }
         public string? JournalName { get; set; }
         public List<string> Authors { get; set; } = new List<string>();
 

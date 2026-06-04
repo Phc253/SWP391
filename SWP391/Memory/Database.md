@@ -22,6 +22,12 @@ CREATE TABLE Roles (
     RoleName NVARCHAR(50) NOT NULL UNIQUE
 );
 
+INSERT INTO Roles (RoleName)
+VALUES
+    ('Administrator'),
+    ('Researcher'),
+    ('Member');
+
 CREATE TABLE Users (
     UserId INT IDENTITY PRIMARY KEY,
     Email NVARCHAR(255) NOT NULL UNIQUE,
@@ -92,6 +98,7 @@ CREATE TABLE Papers (
     Title NVARCHAR(MAX) NOT NULL,
     Abstract NVARCHAR(MAX),
     PublicationYear INT,
+    CitationCount INT DEFAULT 0,
     JournalId INT NULL,
     SourceId INT NULL,
     ExternalId NVARCHAR(200),

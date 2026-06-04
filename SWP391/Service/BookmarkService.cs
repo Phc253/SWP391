@@ -120,6 +120,7 @@ namespace SWP391.Service
                         item.Title = paper.Title;
                         item.Abstract = paper.Abstract;
                         item.PublicationYear = paper.PublicationYear;
+                        item.CitationCount = paper.CitationCount;
                         item.JournalName = paper.Journal?.JournalName;
                         item.Authors = paper.Authors.Select(a => a.AuthorName).ToList();
                     }

@@ -170,6 +170,7 @@ public partial class ScientificTrendDbContext : DbContext
 
             entity.HasIndex(e => e.PublicationYear, "IX_Papers_Year");
 
+            entity.Property(e => e.CitationCount).HasDefaultValue(0);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.ExternalId).HasMaxLength(200);
 
@@ -247,6 +248,11 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasIndex(e => e.RoleName, "UQ__Roles__8A2B61607F418F30").IsUnique();
 
             entity.Property(e => e.RoleName).HasMaxLength(50);
+
+            entity.HasData(
+                new Role { RoleId = 1, RoleName = "Administrator" },
+                new Role { RoleId = 2, RoleName = "Researcher" },
+                new Role { RoleId = 3, RoleName = "Member" });
         });
 
         modelBuilder.Entity<SyncJob>(entity =>

@@ -24,6 +24,7 @@ namespace SWP391.Models.Author
         public long PaperId { get; set; }
         public string Title { get; set; } = null!;
         public int? PublicationYear { get; set; }
+        public int? CitationCount { get; set; }
         public string? JournalName { get; set; }
     }
 }
