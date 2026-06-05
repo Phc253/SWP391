@@ -38,6 +38,7 @@ namespace SWP391.Service
             var password = request.Password ?? string.Empty;
             var fullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
             var phoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+            var actorType = UserActorTypes.Normalize(request.ActorType);
 
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -84,6 +85,11 @@ namespace SWP391.Service
                 return ServiceResult<RegisterResponse>.Fail("Phone number is too long.");
             }
 
+            if (string.IsNullOrEmpty(actorType))
+            {
+                return ServiceResult<RegisterResponse>.Fail("ActorType must be one of: Researcher, Lecturer, Student.");
+            }
+
             var existingUser = await _accountRepository.GetUserByEmailAsync(email);
             if (existingUser != null)
             {
@@ -97,6 +103,7 @@ namespace SWP391.Service
                 FullName = fullName,
                 DateOfBirth = request.DateOfBirth.Value.Date,
                 PhoneNumber = phoneNumber,
+                ActorType = actorType,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = false
             };
@@ -120,6 +127,7 @@ namespace SWP391.Service
                 FullName = createdUser.FullName,
                 DateOfBirth = createdUser.DateOfBirth,
                 PhoneNumber = createdUser.PhoneNumber,
+                ActorType = createdUser.ActorType,
                 CreatedAt = createdUser.CreatedAt,
                 IsActive = createdUser.IsActive ?? false,
                 Message = "Registration successful. Please check your email to activate your account."
@@ -183,7 +191,8 @@ namespace SWP391.Service
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty)
+                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty),
+                new Claim("actor_type", user.ActorType)
             };
 
             // [CẬP NHẬT] Lặp qua các Role của User (đã được Include từ Repository) và đẩy vào Token
@@ -207,7 +216,11 @@ namespace SWP391.Service
             return ServiceResult<LoginResponse>.Ok(new LoginResponse 
             { 
                 Token = tokenString,
-                Email = user.Email
+                UserId = user.UserId,
+                Email = user.Email,
+                FullName = user.FullName,
+                ActorType = user.ActorType,
+                Roles = user.Roles.Select(r => r.RoleName).ToList()
             });
         }
 

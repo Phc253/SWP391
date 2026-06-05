@@ -35,6 +35,7 @@ CREATE TABLE Users (
     FullName NVARCHAR(150),
     DateOfBirth DATE NULL,
     PhoneNumber NVARCHAR(20),
+    ActorType NVARCHAR(50) NOT NULL DEFAULT N'Student',
     CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
     IsActive BIT DEFAULT 1
 );

@@ -17,6 +17,8 @@ public partial class User
 
     public string? PhoneNumber { get; set; }
 
+    public string ActorType { get; set; } = "Student";
+
     public DateTime? CreatedAt { get; set; }
 
     public bool? IsActive { get; set; }
