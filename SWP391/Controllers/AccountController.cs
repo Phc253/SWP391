@@ -60,12 +60,20 @@ namespace SWP391.Controllers
             // Trong API này bạn có quyền đọc các Claims đã được giải mã mà hệ thống lấy được từ Token
             var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
             var email = User.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
+            var fullName = User.FindFirstValue(System.Security.Claims.ClaimTypes.Name);
+            var actorType = User.FindFirstValue("actor_type");
+            var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
+                .Select(c => c.Value)
+                .ToList();
 
             return Ok(new 
             {
-                Message = "Nếu bạn thấy chữ này có nghĩa là Token của bạn hợp lệ!",
+
                 UserId = userId,
-                Email = email
+                Email = email,
+                FullName = fullName,
+                ActorType = actorType,
+                Roles = roles
             });
         }
 

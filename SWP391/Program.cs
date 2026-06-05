@@ -7,6 +7,7 @@ using SWP391.Models.Dashboard;
 using SWP391.Models.Report;
 using SWP391.Models.Admin;
 using SWP391.Models.Notification;
+using SWP391.Models.Integration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -96,6 +97,17 @@ namespace SWP391
             builder.Services.AddScoped<AuthorService>();
             builder.Services.AddScoped<FollowRepository>();
             builder.Services.AddScoped<FollowService>();
+            builder.Services.Configure<DataSyncSchedulerOptions>(
+                builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
+
+            var dataSyncSchedulerOptions = builder.Configuration
+                .GetSection(DataSyncSchedulerOptions.SectionName)
+                .Get<DataSyncSchedulerOptions>() ?? new DataSyncSchedulerOptions();
+
+            if (dataSyncSchedulerOptions.Enabled)
+            {
+                builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
+            }
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

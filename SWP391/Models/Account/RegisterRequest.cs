@@ -11,4 +11,6 @@ public class RegisterRequest
     public DateTime? DateOfBirth { get; set; }
 
     public string? PhoneNumber { get; set; }
+
+    public string? ActorType { get; set; }
 }

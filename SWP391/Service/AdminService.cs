@@ -147,6 +147,7 @@ namespace SWP391.Service
             UserId    = user.UserId,
             Email     = user.Email,
             FullName  = user.FullName,
+            ActorType = user.ActorType,
             IsActive  = user.IsActive ?? true,
             CreatedAt = user.CreatedAt,
             Roles     = user.Roles.Select(r => r.RoleName).ToList()

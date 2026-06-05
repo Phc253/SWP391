@@ -11,7 +11,7 @@ External Academic APIs
 → Fetch Metadata
 → Validate & Normalize
 → Store Database
-→ Match Followed Topics/Journals & Trigger Notifications
+→ Match Followed Topics/Journals & Trigger Notifications 
 Business Value
 Tự động cập nhật bài báo mới.
 Không phụ thuộc nhập liệu thủ công.

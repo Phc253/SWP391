@@ -21,7 +21,7 @@ namespace SWP391.Controllers
         [HttpPost("sync-openalex")]
         public async Task<IActionResult> SyncOpenAlex(string keyword = "Computer Science", int maxResults = 20)
         {
-            var result = await _dataSyncService.SyncOpenAlexAsync(keyword, maxResults);
+            var result = await _dataSyncService.SyncOpenAlexAsync   (keyword, maxResults);
             if (!result.Success)
                 return StatusCode(500, result);
 
