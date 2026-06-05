@@ -50,15 +50,30 @@ SWP391/
 - `CanPublishArticle` — requires Researcher or Administrator
 - `IsMember` — requires Member, Researcher, or Administrator
 
-**JWT Auth:** `AccountService` generates tokens with roles as claims. Token expiry is configured in `appsettings.json` under `Jwt:ExpireMinutes`. Passwords use PBKDF2 + salt stored in the `User` entity.
+**JWT claims:** `ClaimTypes.NameIdentifier` → UserId, `ClaimTypes.Email` → Email, `ClaimTypes.Role` → role(s). Token lifetime is 7 days (hardcoded in `AccountService.LoginAsync`; `Jwt:ExpireMinutes` in config is not currently used).
 
-**OpenAlex integration:** `AcademicDataIntegrationService` fetches papers from the OpenAlex API and upserts them by `ExternalId` to avoid duplicates. Triggered via `DataSyncController`.
+**Password hashing:** PBKDF2 + SHA-256, 10,000 iterations, 16-byte salt. Stored as `{base64(salt)}.{base64(hash)}` in `User.PasswordHash`.
+
+**Pagination contract:** Repositories return `(List<T> items, int totalCount)`. Controllers accept `page` (default 1) and `pageSize` (default 10–20, clamped 1–100).
+
+**AutoMapper:** Used in services to map entities → DTOs. Profiles are registered in `Program.cs`.
+
+## Business Domains
+
+**OpenAlex sync:** `AcademicDataIntegrationService` fetches papers from OpenAlex and upserts by `ExternalId`. OpenAlex concepts are normalized by level — Level 0–1 become `ResearchTopic`, Level 2+ become `Keyword`. Sync history is recorded in `SyncJob`. Triggered via `POST /api/datasync/sync-openalex` (AdminOnly).
+
+**Trend analysis:** `TrendService` queries paper counts by year per keyword or topic. `PublicationTrend` is a materialized cache table populated by `POST /api/trends/compute-trends` (AdminOnly) — run this after a sync to keep trend data fresh. Activity Score combines recent paper count + YoY growth rate, normalized to 0–100.
+
+**Email verification:** Registration creates an `EmailVerificationToken` record. The token is emailed via SMTP (configured under `Email:` in `appsettings.json`). `GET /api/account/verify-email?token=` validates and activates the account. Unverified accounts cannot log in.
+
+**User personalization:** Bookmarks and follows use a generic `TargetType` string (`"Paper"`, `"Keyword"`, `"Author"`) with `TargetId`, toggling on repeated calls.
 
 ## Configuration
 
 `appsettings.json` holds:
 - `ConnectionStrings:DefaultConnection` — SQL Server (local instance `MINHDUCK\DUCDEPTRAI`, Windows auth)
-- `Jwt:Key`, `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpireMinutes`
+- `Jwt:Key`, `Jwt:Issuer`, `Jwt:Audience`
+- `Email:SmtpHost`, `Email:SmtpPort`, `Email:SenderEmail`, `Email:SenderPassword`, `Email:VerificationUrl`
 
 CORS is currently open to all origins — development configuration.
 
