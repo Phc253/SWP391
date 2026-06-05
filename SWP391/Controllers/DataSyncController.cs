@@ -1,38 +1,31 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using SWP391.Models;
 using SWP391.Service;
 
 namespace SWP391.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Policy = "AdminOnly")]
     public class DataSyncController : ControllerBase
     {
-        private readonly AcademicDataIntegrationService _integrationService;
+        private readonly DataSyncService _dataSyncService;
 
-        public DataSyncController(AcademicDataIntegrationService integrationService)
+        public DataSyncController(DataSyncService dataSyncService)
         {
-            _integrationService = integrationService;
+            _dataSyncService = dataSyncService;
         }
 
-        // API này dùng để đồng bộ dữ liệu (cào bài báo) từ API OpenAlex. 
-        // VD: POST /api/datasync/sync-openalex?keyword=Computer Science&maxResults=20
-        // Tạm thời endpoint không yêu cầu Admin hoặc Authorize cứng để bạn dễ test
-        // Sau này có thiết lập role hoàn chỉnh có thể mở lại:
-        // [Authorize(Roles = "Admin")]
+        // Manual admin trigger for the OpenAlex data acquisition pipeline.
+        // Creates a SyncJob, fetches metadata, stores normalized records, then refreshes trend data.
         [HttpPost("sync-openalex")]
         public async Task<IActionResult> SyncOpenAlex(string keyword = "Computer Science", int maxResults = 20)
         {
-            try
-            {
-                var resultCount = await _integrationService.FetchAndSaveDataFromOpenAlexAsync(keyword, maxResults);
-                return Ok(ServiceResult<string>.Ok($"Successfully fetched and saved {resultCount} papers."));
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ServiceResult<string>.Fail($"Error syncing data: {ex.Message}"));
-            }
+            var result = await _dataSyncService.SyncOpenAlexAsync   (keyword, maxResults);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
         }
     }
 }

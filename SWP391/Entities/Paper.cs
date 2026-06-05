@@ -13,6 +13,8 @@ public partial class Paper
 
     public int? PublicationYear { get; set; }
 
+    public int? CitationCount { get; set; }
+
     public int? JournalId { get; set; }
 
     public int? SourceId { get; set; }

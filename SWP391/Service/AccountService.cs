@@ -1,5 +1,6 @@
 ﻿using System.Net.Mail;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -15,6 +16,7 @@ namespace SWP391.Service
     {
         private const int MinPasswordLength = 6;
         private const int MaxPasswordLength = 100;
+        private const int EmailVerificationTokenHours = 24;
 
         private readonly AccountRepository _accountRepository;
         private readonly IConfiguration _configuration;
@@ -35,6 +37,8 @@ namespace SWP391.Service
             var email = request.Email?.Trim();
             var password = request.Password ?? string.Empty;
             var fullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
+            var phoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+            var actorType = UserActorTypes.Normalize(request.ActorType);
 
             if (string.IsNullOrWhiteSpace(email))
             {
@@ -61,6 +65,31 @@ namespace SWP391.Service
                 return ServiceResult<RegisterResponse>.Fail("Full name is too long.");
             }
 
+            if (!request.DateOfBirth.HasValue)
+            {
+                return ServiceResult<RegisterResponse>.Fail("Date of birth is required.");
+            }
+
+            if (request.DateOfBirth.Value.Date > DateTime.UtcNow.Date)
+            {
+                return ServiceResult<RegisterResponse>.Fail("Date of birth cannot be in the future.");
+            }
+
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+            {
+                return ServiceResult<RegisterResponse>.Fail("Phone number is required.");
+            }
+
+            if (phoneNumber.Length > 20)
+            {
+                return ServiceResult<RegisterResponse>.Fail("Phone number is too long.");
+            }
+
+            if (string.IsNullOrEmpty(actorType))
+            {
+                return ServiceResult<RegisterResponse>.Fail("ActorType must be one of: Researcher, Lecturer, Student.");
+            }
+
             var existingUser = await _accountRepository.GetUserByEmailAsync(email);
             if (existingUser != null)
             {
@@ -72,18 +101,36 @@ namespace SWP391.Service
                 Email = email,
                 PasswordHash = HashPassword(password),
                 FullName = fullName,
+                DateOfBirth = request.DateOfBirth.Value.Date,
+                PhoneNumber = phoneNumber,
+                ActorType = actorType,
                 CreatedAt = DateTime.UtcNow,
-                IsActive = true
+                IsActive = false
             };
 
             var createdUser = await _accountRepository.CreateUserAsync(user);
+            var rawToken = GenerateEmailVerificationToken();
+            await _accountRepository.AddEmailVerificationTokenAsync(new EmailVerificationToken
+            {
+                UserId = createdUser.UserId,
+                TokenHash = HashToken(rawToken),
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddHours(EmailVerificationTokenHours)
+            });
+
+            await SendVerificationEmailAsync(createdUser.Email, rawToken);
+
             var response = new RegisterResponse
             {
                 UserId = createdUser.UserId,
                 Email = createdUser.Email,
                 FullName = createdUser.FullName,
+                DateOfBirth = createdUser.DateOfBirth,
+                PhoneNumber = createdUser.PhoneNumber,
+                ActorType = createdUser.ActorType,
                 CreatedAt = createdUser.CreatedAt,
-                IsActive = createdUser.IsActive ?? true
+                IsActive = createdUser.IsActive ?? false,
+                Message = "Registration successful. Please check your email to activate your account."
             };
 
             return ServiceResult<RegisterResponse>.Ok(response);
@@ -126,6 +173,11 @@ namespace SWP391.Service
                 return ServiceResult<LoginResponse>.Fail("User not found.");
             }
 
+            if (user.IsActive != true)
+            {
+                return ServiceResult<LoginResponse>.Fail("Please verify your email before logging in.");
+            }
+
             if (!VerifyPassword(request.Password, user.PasswordHash))
             {
                 return ServiceResult<LoginResponse>.Fail("Invalid password.");
@@ -139,7 +191,8 @@ namespace SWP391.Service
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty)
+                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty),
+                new Claim("actor_type", user.ActorType)
             };
 
             // [CẬP NHẬT] Lặp qua các Role của User (đã được Include từ Repository) và đẩy vào Token
@@ -163,7 +216,11 @@ namespace SWP391.Service
             return ServiceResult<LoginResponse>.Ok(new LoginResponse 
             { 
                 Token = tokenString,
-                Email = user.Email
+                UserId = user.UserId,
+                Email = user.Email,
+                FullName = user.FullName,
+                ActorType = user.ActorType,
+                Roles = user.Roles.Select(r => r.RoleName).ToList()
             });
         }
 
@@ -182,6 +239,80 @@ namespace SWP391.Service
             var testHash = pbkdf2.GetBytes(32);
 
             return CryptographicOperations.FixedTimeEquals(hash, testHash);
+        }
+
+        public async Task<ServiceResult<string>> VerifyEmailAsync(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return ServiceResult<string>.Fail("Verification token is required.");
+            }
+
+            var tokenHash = HashToken(token.Trim());
+            var verificationToken = await _accountRepository.GetValidEmailVerificationTokenAsync(tokenHash);
+            if (verificationToken == null)
+            {
+                return ServiceResult<string>.Fail("Verification link is invalid or expired.");
+            }
+
+            await _accountRepository.MarkEmailVerifiedAsync(verificationToken);
+            return ServiceResult<string>.Ok("Email verified successfully. Your account is now active.");
+        }
+
+        private static string GenerateEmailVerificationToken()
+        {
+            var bytes = new byte[32];
+            RandomNumberGenerator.Fill(bytes);
+            return WebEncoders.Base64UrlEncode(bytes);
+        }
+
+        private static string HashToken(string token)
+        {
+            var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+            return Convert.ToBase64String(hash);
+        }
+
+        private async Task SendVerificationEmailAsync(string recipientEmail, string token)
+        {
+            var verifyBaseUrl = _configuration["Email:VerifyBaseUrl"];
+            if (string.IsNullOrWhiteSpace(verifyBaseUrl))
+            {
+                throw new InvalidOperationException("Email:VerifyBaseUrl is not configured.");
+            }
+
+            var host = _configuration["Email:SmtpHost"];
+            var username = _configuration["Email:SmtpUsername"];
+            var password = _configuration["Email:SmtpPassword"];
+            var from = _configuration["Email:From"] ?? username;
+
+            if (string.IsNullOrWhiteSpace(host) ||
+                string.IsNullOrWhiteSpace(username) ||
+                string.IsNullOrWhiteSpace(password) ||
+                string.IsNullOrWhiteSpace(from))
+            {
+                throw new InvalidOperationException("Email SMTP settings are not fully configured.");
+            }
+
+            var verifyLink = $"{verifyBaseUrl.TrimEnd('/')}?token={Uri.EscapeDataString(token)}";
+            var port = int.TryParse(_configuration["Email:SmtpPort"], out var configuredPort)
+                ? configuredPort
+                : 587;
+            var enableSsl = !bool.TryParse(_configuration["Email:EnableSsl"], out var configuredSsl) || configuredSsl;
+
+            using var message = new MailMessage(from, recipientEmail)
+            {
+                Subject = "Verify your Scientific Trend account",
+                Body = $"Click this link to verify your account: {verifyLink}",
+                IsBodyHtml = false
+            };
+
+            using var client = new SmtpClient(host, port)
+            {
+                EnableSsl = enableSsl,
+                Credentials = new System.Net.NetworkCredential(username, password)
+            };
+
+            await client.SendMailAsync(message);
         }
     }
 }

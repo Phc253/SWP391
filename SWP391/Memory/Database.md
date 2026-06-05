@@ -22,13 +22,35 @@ CREATE TABLE Roles (
     RoleName NVARCHAR(50) NOT NULL UNIQUE
 );
 
+INSERT INTO Roles (RoleName)
+VALUES
+    ('Administrator'),
+    ('Researcher'),
+    ('Member');
+
 CREATE TABLE Users (
     UserId INT IDENTITY PRIMARY KEY,
     Email NVARCHAR(255) NOT NULL UNIQUE,
     PasswordHash NVARCHAR(255) NOT NULL,
     FullName NVARCHAR(150),
+    DateOfBirth DATE NULL,
+    PhoneNumber NVARCHAR(20),
+    ActorType NVARCHAR(50) NOT NULL DEFAULT N'Student',
     CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
     IsActive BIT DEFAULT 1
+);
+
+CREATE TABLE EmailVerificationTokens (
+    EmailVerificationTokenId BIGINT IDENTITY PRIMARY KEY,
+    UserId INT NOT NULL,
+    TokenHash NVARCHAR(255) NOT NULL,
+    ExpiresAt DATETIME2 NOT NULL,
+    CreatedAt DATETIME2 DEFAULT SYSDATETIME(),
+    UsedAt DATETIME2 NULL,
+
+    FOREIGN KEY (UserId)
+        REFERENCES Users(UserId)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE UserRoles (
@@ -77,6 +99,7 @@ CREATE TABLE Papers (
     Title NVARCHAR(MAX) NOT NULL,
     Abstract NVARCHAR(MAX),
     PublicationYear INT,
+    CitationCount INT DEFAULT 0,
     JournalId INT NULL,
     SourceId INT NULL,
     ExternalId NVARCHAR(200),
@@ -266,5 +289,11 @@ ON Follows(UserId);
 
 CREATE INDEX IX_Notifications_User
 ON Notifications(UserId, IsRead);
+
+CREATE INDEX IX_EmailVerificationTokens_TokenHash
+ON EmailVerificationTokens(TokenHash);
+
+CREATE INDEX IX_EmailVerificationTokens_User_UsedAt
+ON EmailVerificationTokens(UserId, UsedAt);
 
 GO

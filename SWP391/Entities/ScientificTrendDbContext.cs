@@ -21,6 +21,8 @@ public partial class ScientificTrendDbContext : DbContext
 
     public virtual DbSet<Bookmark> Bookmarks { get; set; }
 
+    public virtual DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
+
     public virtual DbSet<Follow> Follows { get; set; }
 
     public virtual DbSet<Journal> Journals { get; set; }
@@ -34,6 +36,8 @@ public partial class ScientificTrendDbContext : DbContext
     public virtual DbSet<PublicationTrend> PublicationTrends { get; set; }
 
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
+
+    public virtual DbSet<TrendSnapshot> TrendSnapshots { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -89,6 +93,22 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Bookmarks)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("FK__Bookmarks__UserI__4F7CD00D");
+        });
+
+        modelBuilder.Entity<EmailVerificationToken>(entity =>
+        {
+            entity.HasKey(e => e.EmailVerificationTokenId);
+
+            entity.HasIndex(e => e.TokenHash, "IX_EmailVerificationTokens_TokenHash");
+
+            entity.HasIndex(e => new { e.UserId, e.UsedAt }, "IX_EmailVerificationTokens_User_UsedAt");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.TokenHash).HasMaxLength(255);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Follow>(entity =>
@@ -152,6 +172,7 @@ public partial class ScientificTrendDbContext : DbContext
 
             entity.HasIndex(e => e.PublicationYear, "IX_Papers_Year");
 
+            entity.Property(e => e.CitationCount).HasDefaultValue(0);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.ExternalId).HasMaxLength(200);
 
@@ -222,6 +243,29 @@ public partial class ScientificTrendDbContext : DbContext
             entity.Property(e => e.TopicName).HasMaxLength(150);
         });
 
+        modelBuilder.Entity<TrendSnapshot>(entity =>
+        {
+            entity.HasKey(e => e.SnapshotId);
+
+            entity.HasIndex(e => e.SnapshotDate, "IX_TrendSnapshots_Date");
+
+            entity.HasIndex(e => new { e.KeywordId, e.SnapshotDate }, "IX_TrendSnapshots_Keyword_Date");
+
+            entity.HasIndex(e => new { e.TopicId, e.SnapshotDate }, "IX_TrendSnapshots_Topic_Date");
+
+            entity.Property(e => e.SnapshotDate).HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.Keyword)
+                .WithMany()
+                .HasForeignKey(d => d.KeywordId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.Topic)
+                .WithMany()
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1AAEFBCBC7");
@@ -229,6 +273,11 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasIndex(e => e.RoleName, "UQ__Roles__8A2B61607F418F30").IsUnique();
 
             entity.Property(e => e.RoleName).HasMaxLength(50);
+
+            entity.HasData(
+                new Role { RoleId = 1, RoleName = "Administrator" },
+                new Role { RoleId = 2, RoleName = "Researcher" },
+                new Role { RoleId = 3, RoleName = "Member" });
         });
 
         modelBuilder.Entity<SyncJob>(entity =>
@@ -256,11 +305,16 @@ public partial class ScientificTrendDbContext : DbContext
 
             entity.HasIndex(e => e.Email, "UQ__Users__A9D105340115A41D").IsUnique();
 
+            entity.Property(e => e.ActorType)
+                .HasMaxLength(50)
+                .HasDefaultValue("Student");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.DateOfBirth).HasColumnType("date");
             entity.Property(e => e.Email).HasMaxLength(255);
             entity.Property(e => e.FullName).HasMaxLength(150);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
             entity.Property(e => e.PasswordHash).HasMaxLength(255);
+            entity.Property(e => e.PhoneNumber).HasMaxLength(20);
 
             entity.HasMany(d => d.Roles).WithMany(p => p.Users)
                 .UsingEntity<Dictionary<string, object>>(

@@ -6,11 +6,12 @@
 Thu thập dữ liệu học thuật và xây dựng nguồn dữ liệu nghiên cứu trung tâm.
 Main Workflow
 External Academic APIs
-→ Scheduler Trigger
+→ Scheduler Trigger (Configured by Admin)
 → Sync Job Created
 → Fetch Metadata
 → Validate & Normalize
 → Store Database
+→ Match Followed Topics/Journals & Trigger Notifications 
 Business Value
 Tự động cập nhật bài báo mới.
 Không phụ thuộc nhập liệu thủ công.
@@ -38,7 +39,8 @@ User Login
 → Search Papers
 → Filter (Keyword / Author / Journal)
 → View Details
-→ Bookmark / Follow
+→ Save/Bookmark (Papers, Keywords)
+→ Subscribe/Follow (Journals, Topics)
 Business Value
 Người dùng tìm bài báo nhanh.
 Cá nhân hóa trải nghiệm nghiên cứu.
@@ -97,7 +99,8 @@ Main Workflow
 Load Trend Data
 → Render Dashboard
 → Generate Reports
-→ Notifications
+→ Notifications (Consume triggered alerts)
+→ System Configuration (Configure API Sources & Sync Schedule)
 → Admin Management
 Business Value
 Người dùng hiểu xu hướng ngay lập tức.
@@ -107,7 +110,7 @@ Functional Areas
 Dashboard Visualization
 Reports Export
 Notification System
-Admin Panel
+Admin Panel (including System Configuration)
 System Monitoring
 Core Tables
 DashboardReports

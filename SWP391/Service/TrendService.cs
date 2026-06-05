@@ -23,7 +23,7 @@ namespace SWP391.Service
                 {
                     return ServiceResult<List<TrendChartResponse>>.Fail("No data found for this keyword. It might not exist or has no papers.");
                 }
-                
+
                 return ServiceResult<List<TrendChartResponse>>.Ok(data);
             }
             catch (Exception ex)
@@ -45,20 +45,14 @@ namespace SWP391.Service
             }
         }
 
-        // ── NEW METHODS BELOW ─────────────────────────────────────────────────────────
+        // ── EXISTING METHODS ──────────────────────────────────────────────────────────
 
-        // Helper: converts raw DB year-counts into a complete, zero-filled growth series.
-        // Why application-side: DB can aggregate counts per year but cannot normalize across
-        // the whole result set (divide by max) — that cross-row operation must happen in code.
-        // Why zero-fill: a year with 0 papers is valid data, not missing data; frontend charts
-        // need a continuous x-axis, and suppressing zero years would hide "dead" periods.
         private static List<YearGrowthPoint> ComputeGrowthPoints(
             List<TrendChartResponse> rawData, int years)
         {
             int currentYear = DateTime.Now.Year;
             int startYear = currentYear - years + 1;
 
-            // Build a fast lookup; years absent from DB have count 0
             var countByYear = rawData.ToDictionary(r => r.Year, r => r.PaperCount);
 
             var result = new List<YearGrowthPoint>(years);
@@ -70,8 +64,6 @@ namespace SWP391.Service
                 double? growthRate = null;
                 if (year > startYear)
                 {
-                    // Guard against divide-by-zero: if baseline is 0 and new count > 0,
-                    // treat growth as +100% (a reasonable sentinel for "emerged from nothing").
                     growthRate = prevCount == 0
                         ? (count > 0 ? 100.0 : 0.0)
                         : Math.Round((double)(count - prevCount) / prevCount * 100, 2);
@@ -88,7 +80,6 @@ namespace SWP391.Service
             return result;
         }
 
-        // Returns a per-year publication chart for a ResearchTopic (analogous to GetKeywordTrendAsync).
         public async Task<ServiceResult<List<TrendChartResponse>>> GetTopicTrendAsync(string topicName)
         {
             try
@@ -107,8 +98,6 @@ namespace SWP391.Service
             }
         }
 
-        // Returns a YoY growth series for a keyword over the requested window.
-        // Missing years within the window are zero-filled so the series is always `years` long.
         public async Task<ServiceResult<KeywordGrowthResponse>> GetKeywordGrowthAsync(
             string keywordText, int years = 5)
         {
@@ -133,7 +122,6 @@ namespace SWP391.Service
             }
         }
 
-        // Returns a YoY growth series for a ResearchTopic over the requested window.
         public async Task<ServiceResult<TopicGrowthResponse>> GetTopicGrowthAsync(
             string topicName, int years = 5)
         {
@@ -158,13 +146,6 @@ namespace SWP391.Service
             }
         }
 
-        // Returns a ranked list of keywords by composite Research Activity Score (0–100).
-        // Score formula: rawScore = RecentPaperCount * 1.0 + GrowthRate * 0.5
-        //   • RecentPaperCount reflects current volume (last 3 years)
-        //   • GrowthRate reflects momentum (recent vs. baseline year)
-        // Normalized to 0–100 so the top keyword always scores 100 and all others are relative.
-        // Why normalize in service: the denominator (max raw score) is a cross-row value that
-        // cannot be computed in a single EF projection without a self-join.
         public async Task<ServiceResult<List<ActivityScoreResponse>>> GetActivityScoresAsync(int topN = 10)
         {
             try
@@ -179,7 +160,6 @@ namespace SWP391.Service
                     return ServiceResult<List<ActivityScoreResponse>>.Ok(
                         new List<ActivityScoreResponse>());
 
-                // Compute raw scores in-memory
                 var scored = rawList.Select(item =>
                 {
                     double growthRate = item.BaselinePaperCount == 0
@@ -193,7 +173,7 @@ namespace SWP391.Service
                 }).ToList();
 
                 double maxRaw = scored.Max(s => s.RawScore);
-                double denominator = Math.Max(1.0, maxRaw); // guard: all-zero edge case
+                double denominator = Math.Max(1.0, maxRaw);
 
                 var result = scored
                     .Select(s => new ActivityScoreResponse
@@ -217,27 +197,137 @@ namespace SWP391.Service
             }
         }
 
-        // Materializes live paper counts into the PublicationTrends cache table.
-        // Intended to be called periodically (e.g., after a data sync) by an Administrator.
-        // Returns counts of rows written so the caller can audit the operation.
+        // ── ENHANCED COMPUTE TRENDS ───────────────────────────────────────────────────
+
+        // Enhanced score formula:
+        //   growthRate       = (RecentPaperCount − BaselinePaperCount) / max(1, Baseline) × 100
+        //   priorGrowthRate  = (BaselinePaperCount − PriorPaperCount)  / max(1, Prior)    × 100
+        //   momentum         = growthRate − priorGrowthRate  (acceleration in percentage points)
+        //   citationVelocity = TotalRecentCitations / max(1, RecentPaperCount)
+        //   rawScore = Volume×1.0 + Growth×0.5 + Citations×0.3 + Momentum×0.2
+        private static (double GrowthRate, double Momentum, double CitationVelocity, double RawScore)
+            ComputeEnhancedScore(EnhancedActivityRawData item)
+        {
+            double growthRate = item.BaselinePaperCount == 0
+                ? (item.RecentPaperCount > 0 ? 100.0 : 0.0)
+                : Math.Round((double)(item.RecentPaperCount - item.BaselinePaperCount)
+                             / item.BaselinePaperCount * 100, 2);
+
+            double priorGrowthRate = item.PriorPaperCount == 0
+                ? (item.BaselinePaperCount > 0 ? 100.0 : 0.0)
+                : Math.Round((double)(item.BaselinePaperCount - item.PriorPaperCount)
+                             / item.PriorPaperCount * 100, 2);
+
+            double momentum = Math.Round(growthRate - priorGrowthRate, 2);
+
+            double citationVelocity = Math.Round(
+                (double)item.TotalRecentCitations / Math.Max(1, item.RecentPaperCount), 2);
+
+            double rawScore = item.RecentPaperCount * 1.0
+                            + growthRate            * 0.5
+                            + citationVelocity      * 0.3
+                            + momentum              * 0.2;
+
+            return (growthRate, momentum, citationVelocity, rawScore);
+        }
+
+        // Materializes live paper counts into the PublicationTrends cache table and writes
+        // a TrendSnapshot row per keyword/topic so score history is preserved across runs.
         public async Task<ServiceResult<ComputeTrendsResponse>> ComputeTrendsAsync()
         {
             try
             {
                 int keywordRecords = await _trendRepository.ComputeAndUpsertAllKeywordTrendsAsync();
-                int topicRecords = await _trendRepository.ComputeAndUpsertAllTopicTrendsAsync();
+                int topicRecords   = await _trendRepository.ComputeAndUpsertAllTopicTrendsAsync();
+
+                var now = DateTime.UtcNow;
+                var snapshots = new List<TrendSnapshot>();
+
+                var kwData    = await _trendRepository.GetEnhancedActivityDataAsync();
+                var topicData = await _trendRepository.GetEnhancedTopicActivityDataAsync();
+                var allData   = kwData.Concat(topicData).ToList();
+
+                if (allData.Any())
+                {
+                    var scored = allData.Select(item =>
+                    {
+                        var (gr, mom, cv, raw) = ComputeEnhancedScore(item);
+                        return new { item, GrowthRate = gr, Momentum = mom, CitVelocity = cv, RawScore = raw };
+                    }).ToList();
+
+                    double maxRaw      = scored.Max(s => s.RawScore);
+                    double denominator = Math.Max(1.0, maxRaw);
+
+                    snapshots = scored.Select(s => new TrendSnapshot
+                    {
+                        KeywordId        = s.item.KeywordId,
+                        TopicId          = s.item.TopicId,
+                        SnapshotDate     = now,
+                        TrendScore       = Math.Round(s.RawScore / denominator * 100, 2),
+                        GrowthRate       = s.GrowthRate,
+                        Momentum         = s.Momentum,
+                        CitationVelocity = s.CitVelocity,
+                        PaperCount       = s.item.TotalPaperCount,
+                        RecentPaperCount = s.item.RecentPaperCount
+                    }).ToList();
+
+                    await _trendRepository.WriteSnapshotsAsync(snapshots);
+                }
 
                 return ServiceResult<ComputeTrendsResponse>.Ok(new ComputeTrendsResponse
                 {
-                    RecordsWritten = keywordRecords + topicRecords,
-                    KeywordRecords = keywordRecords,
-                    TopicRecords = topicRecords
+                    RecordsWritten   = keywordRecords + topicRecords,
+                    KeywordRecords   = keywordRecords,
+                    TopicRecords     = topicRecords,
+                    SnapshotsWritten = snapshots.Count
                 });
             }
             catch (Exception ex)
             {
                 return ServiceResult<ComputeTrendsResponse>.Fail(
                     "An error occurred while computing trends: " + ex.Message);
+            }
+        }
+
+        // ── SNAPSHOT HISTORY ─────────────────────────────────────────────────────────
+
+        public async Task<ServiceResult<List<TrendSnapshotResponse>>> GetSnapshotHistoryAsync(
+            string keywordText, int days = 30)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(keywordText))
+                    return ServiceResult<List<TrendSnapshotResponse>>.Fail("Keyword is required.");
+                if (days < 1 || days > 365)
+                    return ServiceResult<List<TrendSnapshotResponse>>.Fail("Days must be between 1 and 365.");
+
+                var data = await _trendRepository.GetSnapshotHistoryByKeywordAsync(keywordText, days);
+                return ServiceResult<List<TrendSnapshotResponse>>.Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<List<TrendSnapshotResponse>>.Fail(
+                    "An error occurred while fetching snapshot history: " + ex.Message);
+            }
+        }
+
+        public async Task<ServiceResult<List<TrendSnapshotResponse>>> GetTopicSnapshotHistoryAsync(
+            string topicName, int days = 30)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(topicName))
+                    return ServiceResult<List<TrendSnapshotResponse>>.Fail("Topic name is required.");
+                if (days < 1 || days > 365)
+                    return ServiceResult<List<TrendSnapshotResponse>>.Fail("Days must be between 1 and 365.");
+
+                var data = await _trendRepository.GetSnapshotHistoryByTopicAsync(topicName, days);
+                return ServiceResult<List<TrendSnapshotResponse>>.Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<List<TrendSnapshotResponse>>.Fail(
+                    "An error occurred while fetching topic snapshot history: " + ex.Message);
             }
         }
     }

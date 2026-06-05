@@ -14,7 +14,6 @@ namespace SWP391.Service
         public AcademicDataIntegrationService(HttpClient httpClient, ScientificTrendDbContext dbContext, ILogger<AcademicDataIntegrationService> logger)
         {
             _httpClient = httpClient;
-            // Setting a User-Agent is often required/recommended for polite usage of APIs like OpenAlex
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "ScientificTrendTracker/1.0 (mailto:admin@example.com)");
             _dbContext = dbContext;
             _logger = logger;
@@ -24,9 +23,7 @@ namespace SWP391.Service
         {
             try
             {
-                // Uri.EscapeDataString để đảm bảo các ký tự đặc biệt trong Keyword (nếu có khoảng trắng, @, &) không làm hỏng URL
                 var encodedKeyword = Uri.EscapeDataString(keyword);
-                // Call URL tìm kiếm các bài viết (works) dựa trên query 
                 var url = $"https://api.openalex.org/works?search={encodedKeyword}&per-page={maxResults}";
 
                 var response = await _httpClient.GetAsync(url);
@@ -38,7 +35,6 @@ namespace SWP391.Service
 
                 _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
 
-                // Parse Json Data
                 var content = await response.Content.ReadAsStringAsync();
                 var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -50,138 +46,13 @@ namespace SWP391.Service
 
                 _logger.LogInformation("OpenAlex returned {Count} results for keyword {Keyword}.", data.Results.Count, keyword);
 
-                // 1. Kiểm tra / Tạo nguồn lấy dữ liệu trong DB giả định (ApiDataSource)
-                var source = await _dbContext.ApiDataSources.FirstOrDefaultAsync(s => s.SourceName == "OpenAlex");
-                if (source == null)
-                {
-                    source = new ApiDataSource
-                    {
-                        SourceName = "OpenAlex",
-                        BaseUrl = "https://api.openalex.org",
-                        IsActive = true
-                    };
-                    _dbContext.ApiDataSources.Add(source);
-                    await _dbContext.SaveChangesAsync();
-                }
+                var source = await EnsureOpenAlexSourceAsync();
 
                 int savedCount = 0;
                 foreach (var work in data.Results)
                 {
-                    // 2. Lọc cơ bản: Bỏ qua những bài rác không có tiêu đề
-                    if (string.IsNullOrWhiteSpace(work.Title)) continue;
-
-                    // 3. Chống trùng lặp (duplication): Kiểm tra xem hệ thống đã lưu bài này (dựa trên ExternalId) chưa
-                    var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
-                    if (existingPaper != null)
-                    {
-                        _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
-                        continue;
-                    }
-
-                    // Tạo đối tượng Paper mới
-                    var paper = new Paper
-                    {
-                        Title = work.Title,
-                        Abstract = BuildAbstract(work.AbstractInvertedIndex), // Parse chuỗi abstract
-                        PublicationYear = work.PublicationYear,
-                        ExternalId = work.Id,
-                        SourceId = source.SourceId,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    // 4. Handle Journal: Lưu thông tin Journal/Tạp chí nếu bài có chứa thông tin Journal
-                    var sourceData = work.PrimaryLocation?.Source;
-                    if (sourceData != null && !string.IsNullOrWhiteSpace(sourceData.DisplayName))
-                    {
-                        var journal = await _dbContext.Journals.FirstOrDefaultAsync(j => j.JournalName == sourceData.DisplayName);
-                        if (journal == null)
-                        {
-                            journal = new Journal
-                            {
-                                JournalName = sourceData.DisplayName,
-                                Issn = sourceData.Issn,
-                                Publisher = sourceData.Publisher
-                            };
-                            _dbContext.Journals.Add(journal);
-                            await _dbContext.SaveChangesAsync(); // Save to get JournalId
-                        }
-                        paper.JournalId = journal.JournalId;
-                    }
-
-                    _dbContext.Papers.Add(paper);
-                    await _dbContext.SaveChangesAsync(); // Save early to get PaperId for relationships
-                    _logger.LogInformation("Saved Paper Id={PaperId} ExternalId={ExternalId} Title={Title}", paper.PaperId, paper.ExternalId, paper.Title);
-
-                    // Handle Authors
-                    if (work.Authorships != null)
-                    {
-                        foreach (var authorship in work.Authorships)
-                        {
-                            var authorData = authorship.Author;
-                            if (authorData != null && !string.IsNullOrWhiteSpace(authorData.DisplayName))
-                            {
-                                var author = await _dbContext.Authors.FirstOrDefaultAsync(a => a.AuthorName == authorData.DisplayName);
-                                if (author == null)
-                                {
-                                    author = new Author { AuthorName = authorData.DisplayName };
-                                    _dbContext.Authors.Add(author);
-                                    await _dbContext.SaveChangesAsync(); // Save to get AuthorId
-                                }
-                                
-                                paper.Authors.Add(author);
-                            }
-                        }
-                    }
-
-                    // Handle Keywords/Concepts
-                    if (work.Concepts != null && work.Concepts.Any())
-                    {
-                        var sortedConcepts = work.Concepts.OrderByDescending(c => c.Score).ToList();
-
-                        // 1. Tìm Research Topic (Concept ở Level 0 hoặc 1, độ bao phủ lớn nhất)
-                        var topicConcept = sortedConcepts.FirstOrDefault(c => c.Level <= 1 && !string.IsNullOrWhiteSpace(c.DisplayName));
-                        ResearchTopic? currentTopic = null;
-
-                        if (topicConcept != null)
-                        {
-                            currentTopic = await _dbContext.ResearchTopics.FirstOrDefaultAsync(t => t.TopicName == topicConcept.DisplayName);
-                            if (currentTopic == null)
-                            {
-                                currentTopic = new ResearchTopic { TopicName = topicConcept.DisplayName };
-                                _dbContext.ResearchTopics.Add(currentTopic);
-                                await _dbContext.SaveChangesAsync(); // Lưu để lấy ID
-                            }
-                        }
-
-                        // 2. Tìm Keywords (Concept ở Level >= 2, chuyên ngành hẹp hơn)
-                        var keywordConcepts = sortedConcepts.Where(c => c.Level >= 2 && !string.IsNullOrWhiteSpace(c.DisplayName)).Take(5);
-                        foreach (var concept in keywordConcepts)
-                        {
-                            var keywordEntity = await _dbContext.Keywords.FirstOrDefaultAsync(k => k.KeywordText == concept.DisplayName);
-                            if (keywordEntity == null)
-                            {
-                                keywordEntity = new Keyword 
-                                { 
-                                    KeywordText = concept.DisplayName,
-                                    TopicId = currentTopic?.TopicId // Link tới Topic cha!
-                                };
-                                _dbContext.Keywords.Add(keywordEntity);
-                                await _dbContext.SaveChangesAsync();
-                            }
-                            else if (keywordEntity.TopicId == null && currentTopic != null)
-                            {
-                                // Cập nhật TopicId nếu trước đó từ khoá này bị null TopicId
-                                keywordEntity.TopicId = currentTopic.TopicId;
-                                await _dbContext.SaveChangesAsync();
-                            }
-
-                            paper.Keywords.Add(keywordEntity);
-                        }
-                    }
-
-                    await _dbContext.SaveChangesAsync();
-                    savedCount++;
-                    _logger.LogInformation("Total saved so far: {SavedCount}", savedCount);
+                    if (await ProcessWorkAsync(work, source))
+                        savedCount++;
                 }
 
                 return savedCount;
@@ -193,23 +64,200 @@ namespace SWP391.Service
             }
         }
 
-        // Phương thức này có tác dụng giải mã abstract_inverted_index trả về từ API OpenAlex.
-        // API OpenAlex không trả về chuỗi văn bản thông thường cho Abstract mà dùng Index để tiết kiệm dung lượng.
-        // Ex: {"keyword": [0,5], "technology": [1]} sẽ dịch lại thành thứ tự các từ dưa trên index.
+        // Fetches papers from OpenAlex for multiple keywords with optional year-range filter.
+        // URL pattern: /works?search={keyword}[&filter=publication_year:{yearFrom}-{yearTo}]&per-page={max}
+        // Per-keyword failures are logged and skipped — the batch continues.
+        public async Task<int> FetchAndSaveFilteredAsync(
+            IEnumerable<string> keywords,
+            int? yearFrom = null,
+            int? yearTo = null,
+            int maxResultsPerKeyword = 40)
+        {
+            var source = await EnsureOpenAlexSourceAsync();
+            int totalSaved = 0;
+
+            foreach (var keyword in keywords)
+            {
+                try
+                {
+                    var encodedKeyword = Uri.EscapeDataString(keyword);
+                    string filterClause = (yearFrom.HasValue && yearTo.HasValue)
+                        ? $"&filter=publication_year:{yearFrom}-{yearTo}"
+                        : string.Empty;
+                    var url = $"https://api.openalex.org/works?search={encodedKeyword}{filterClause}&per-page={maxResultsPerKeyword}";
+
+                    var response = await _httpClient.GetAsync(url);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning("OpenAlex filter fetch failed for keyword '{Keyword}' status {Status}", keyword, response.StatusCode);
+                        continue;
+                    }
+
+                    var content = await response.Content.ReadAsStringAsync();
+                    var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (data?.Results == null) continue;
+
+                    _logger.LogInformation("OpenAlex returned {Count} results for keyword '{Keyword}'.", data.Results.Count, keyword);
+
+                    foreach (var work in data.Results)
+                    {
+                        if (await ProcessWorkAsync(work, source))
+                            totalSaved++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error fetching keyword '{Keyword}' — skipping", keyword);
+                }
+            }
+
+            return totalSaved;
+        }
+
+        // Ensures the OpenAlex ApiDataSource row exists and returns it.
+        private async Task<ApiDataSource> EnsureOpenAlexSourceAsync()
+        {
+            var source = await _dbContext.ApiDataSources.FirstOrDefaultAsync(s => s.SourceName == "OpenAlex");
+            if (source == null)
+            {
+                source = new ApiDataSource
+                {
+                    SourceName = "OpenAlex",
+                    BaseUrl = "https://api.openalex.org",
+                    IsActive = true
+                };
+                _dbContext.ApiDataSources.Add(source);
+                await _dbContext.SaveChangesAsync();
+            }
+            return source;
+        }
+
+        // Processes a single OpenAlex work: deduplicates, creates journal/authors/keywords, saves paper.
+        // Returns true if a new paper was saved, false if it was a duplicate or had no title.
+        private async Task<bool> ProcessWorkAsync(WorkData work, ApiDataSource source)
+        {
+            if (string.IsNullOrWhiteSpace(work.Title)) return false;
+
+            var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
+            if (existingPaper != null)
+            {
+                existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
+                await _dbContext.SaveChangesAsync();
+                _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
+                return false;
+            }
+
+            var paper = new Paper
+            {
+                Title = work.Title,
+                Abstract = BuildAbstract(work.AbstractInvertedIndex),
+                PublicationYear = work.PublicationYear,
+                CitationCount = work.CitationCount,
+                ExternalId = work.Id,
+                SourceId = source.SourceId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var sourceData = work.PrimaryLocation?.Source;
+            if (sourceData != null && !string.IsNullOrWhiteSpace(sourceData.DisplayName))
+            {
+                var journal = await _dbContext.Journals.FirstOrDefaultAsync(j => j.JournalName == sourceData.DisplayName);
+                if (journal == null)
+                {
+                    journal = new Journal
+                    {
+                        JournalName = sourceData.DisplayName,
+                        Issn = sourceData.Issn,
+                        Publisher = sourceData.Publisher
+                    };
+                    _dbContext.Journals.Add(journal);
+                    await _dbContext.SaveChangesAsync();
+                }
+                paper.JournalId = journal.JournalId;
+            }
+
+            _dbContext.Papers.Add(paper);
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("Saved Paper Id={PaperId} ExternalId={ExternalId} Title={Title}", paper.PaperId, paper.ExternalId, paper.Title);
+
+            if (work.Authorships != null)
+            {
+                foreach (var authorship in work.Authorships)
+                {
+                    var authorData = authorship.Author;
+                    if (authorData != null && !string.IsNullOrWhiteSpace(authorData.DisplayName))
+                    {
+                        var author = await _dbContext.Authors.FirstOrDefaultAsync(a => a.AuthorName == authorData.DisplayName);
+                        if (author == null)
+                        {
+                            author = new Author { AuthorName = authorData.DisplayName };
+                            _dbContext.Authors.Add(author);
+                            await _dbContext.SaveChangesAsync();
+                        }
+                        paper.Authors.Add(author);
+                    }
+                }
+            }
+
+            if (work.Concepts != null && work.Concepts.Any())
+            {
+                var sortedConcepts = work.Concepts.OrderByDescending(c => c.Score).ToList();
+
+                var topicConcept = sortedConcepts.FirstOrDefault(c => c.Level <= 1 && !string.IsNullOrWhiteSpace(c.DisplayName));
+                ResearchTopic? currentTopic = null;
+
+                if (topicConcept != null)
+                {
+                    currentTopic = await _dbContext.ResearchTopics.FirstOrDefaultAsync(t => t.TopicName == topicConcept.DisplayName);
+                    if (currentTopic == null)
+                    {
+                        currentTopic = new ResearchTopic { TopicName = topicConcept.DisplayName };
+                        _dbContext.ResearchTopics.Add(currentTopic);
+                        await _dbContext.SaveChangesAsync();
+                    }
+                }
+
+                var keywordConcepts = sortedConcepts.Where(c => c.Level >= 2 && !string.IsNullOrWhiteSpace(c.DisplayName)).Take(5);
+                foreach (var concept in keywordConcepts)
+                {
+                    var keywordEntity = await _dbContext.Keywords.FirstOrDefaultAsync(k => k.KeywordText == concept.DisplayName);
+                    if (keywordEntity == null)
+                    {
+                        keywordEntity = new Keyword
+                        {
+                            KeywordText = concept.DisplayName,
+                            TopicId = currentTopic?.TopicId
+                        };
+                        _dbContext.Keywords.Add(keywordEntity);
+                        await _dbContext.SaveChangesAsync();
+                    }
+                    else if (keywordEntity.TopicId == null && currentTopic != null)
+                    {
+                        keywordEntity.TopicId = currentTopic.TopicId;
+                        await _dbContext.SaveChangesAsync();
+                    }
+
+                    paper.Keywords.Add(keywordEntity);
+                }
+            }
+
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+
+        // Decodes OpenAlex abstract_inverted_index (word → position list) back into plain text.
         private string BuildAbstract(Dictionary<string, List<int>>? invertedIndex)
         {
             if (invertedIndex == null || !invertedIndex.Any()) return string.Empty;
 
             var words = new (string Word, int Index)[invertedIndex.Values.SelectMany(v => v).Max() + 1];
-            
+
             foreach (var kvp in invertedIndex)
             {
                 foreach (var index in kvp.Value)
                 {
                     if (index < words.Length)
-                    {
                         words[index] = (kvp.Key, index);
-                    }
                 }
             }
 

@@ -37,6 +37,9 @@ namespace SWP391.Models.Integration
         [JsonPropertyName("publication_year")]
         public int? PublicationYear { get; set; }
 
+        [JsonPropertyName("cited_by_count")]
+        public int? CitationCount { get; set; }
+
         [JsonPropertyName("abstract_inverted_index")]
         public Dictionary<string, List<int>>? AbstractInvertedIndex { get; set; }
         
