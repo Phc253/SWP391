@@ -19,7 +19,7 @@ namespace SWP391.Service
             _logger = logger;
         }
 
-        public async Task<int> FetchAndSaveDataFromOpenAlexAsync(string keyword = "Computer Science", int maxResults = 40)
+        public async Task<DataIngestionResult> FetchAndSaveDataFromOpenAlexAsync(string keyword = "Computer Science", int maxResults = 40)
         {
             try
             {
@@ -30,7 +30,7 @@ namespace SWP391.Service
                 if (!response.IsSuccessStatusCode)
                 {
                     _logger.LogError("OpenAlex API failed with status code {Status}", response.StatusCode);
-                    return 0;
+                    return new DataIngestionResult();
                 }
 
                 _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
@@ -41,21 +41,28 @@ namespace SWP391.Service
                 if (data?.Results == null || !data.Results.Any())
                 {
                     _logger.LogInformation("OpenAlex returned no results for keyword {Keyword}.", keyword);
-                    return 0;
+                    return new DataIngestionResult();
                 }
 
                 _logger.LogInformation("OpenAlex returned {Count} results for keyword {Keyword}.", data.Results.Count, keyword);
 
                 var source = await EnsureOpenAlexSourceAsync();
 
-                int savedCount = 0;
+                var newPaperIds = new List<long>();
                 foreach (var work in data.Results)
                 {
-                    if (await ProcessWorkAsync(work, source))
-                        savedCount++;
+                    var paperId = await ProcessWorkAsync(work, source);
+                    if (paperId.HasValue)
+                    {
+                        newPaperIds.Add(paperId.Value);
+                    }
                 }
 
-                return savedCount;
+                return new DataIngestionResult
+                {
+                    SavedCount = newPaperIds.Count,
+                    NewPaperIds = newPaperIds
+                };
             }
             catch (Exception ex)
             {
@@ -101,7 +108,7 @@ namespace SWP391.Service
 
                     foreach (var work in data.Results)
                     {
-                        if (await ProcessWorkAsync(work, source))
+                        if ((await ProcessWorkAsync(work, source)).HasValue)
                             totalSaved++;
                     }
                 }
@@ -133,10 +140,10 @@ namespace SWP391.Service
         }
 
         // Processes a single OpenAlex work: deduplicates, creates journal/authors/keywords, saves paper.
-        // Returns true if a new paper was saved, false if it was a duplicate or had no title.
-        private async Task<bool> ProcessWorkAsync(WorkData work, ApiDataSource source)
+        // Returns the new PaperId when saved, or null for duplicates/invalid works.
+        private async Task<long?> ProcessWorkAsync(WorkData work, ApiDataSource source)
         {
-            if (string.IsNullOrWhiteSpace(work.Title)) return false;
+            if (string.IsNullOrWhiteSpace(work.Title)) return null;
 
             var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
             if (existingPaper != null)
@@ -144,7 +151,7 @@ namespace SWP391.Service
                 existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
                 await _dbContext.SaveChangesAsync();
                 _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
-                return false;
+                return null;
             }
 
             var paper = new Paper
@@ -242,7 +249,7 @@ namespace SWP391.Service
             }
 
             await _dbContext.SaveChangesAsync();
-            return true;
+            return paper.PaperId;
         }
 
         // Decodes OpenAlex abstract_inverted_index (word → position list) back into plain text.

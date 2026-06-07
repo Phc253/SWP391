@@ -89,6 +89,7 @@ namespace SWP391
             builder.Services.AddScoped<ReportService>();
             builder.Services.AddScoped<NotificationRepository>();
             builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<NotificationTriggerService>();
             builder.Services.AddScoped<AdminRepository>();
             builder.Services.AddScoped<AdminService>();
             builder.Services.AddScoped<BookmarkRepository>();

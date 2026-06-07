@@ -34,7 +34,7 @@ namespace SWP391.Controllers
 
             if (!result.Success)
                 return BadRequest(result);
-
+                
             return Ok(result.Data);
         }
 

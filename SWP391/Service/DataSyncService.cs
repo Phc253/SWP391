@@ -13,17 +13,20 @@ namespace SWP391.Service
         private readonly ScientificTrendDbContext _dbContext;
         private readonly AcademicDataIntegrationService _integrationService;
         private readonly TrendService _trendService;
+        private readonly NotificationTriggerService _notificationTriggerService;
         private readonly ILogger<DataSyncService> _logger;
 
         public DataSyncService(
             ScientificTrendDbContext dbContext,
             AcademicDataIntegrationService integrationService,
             TrendService trendService,
+            NotificationTriggerService notificationTriggerService,
             ILogger<DataSyncService> logger)
         {
             _dbContext = dbContext;
             _integrationService = integrationService;
             _trendService = trendService;
+            _notificationTriggerService = notificationTriggerService;
             _logger = logger;
         }
 
@@ -46,14 +49,33 @@ namespace SWP391.Service
 
             try
             {
-                int recordsFetched = await _integrationService.FetchAndSaveDataFromOpenAlexAsync(keyword, maxResults);
-                syncJob.RecordsFetched = recordsFetched;
+                var ingestionResult = await _integrationService.FetchAndSaveDataFromOpenAlexAsync(keyword, maxResults);
+                syncJob.RecordsFetched = ingestionResult.SavedCount;
+
+                var warnings = new List<string>();
+                int notificationsCreated = 0;
+
+                try
+                {
+                    notificationsCreated = await _notificationTriggerService.TriggerForNewPapersAsync(
+                        ingestionResult.NewPaperIds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Notification trigger failed for SyncJobId={SyncJobId}", syncJob.SyncJobId);
+                    warnings.Add("Notification trigger failed: " + ex.Message);
+                }
 
                 var trendResult = await _trendService.ComputeTrendsAsync();
                 if (!trendResult.Success)
                 {
+                    warnings.Add("Trend computation failed: " + trendResult.Error);
+                }
+
+                if (warnings.Any())
+                {
                     syncJob.Status = "CompletedWithWarnings";
-                    syncJob.ErrorMessage = trendResult.Error;
+                    syncJob.ErrorMessage = string.Join(" | ", warnings);
                 }
                 else
                 {
@@ -69,11 +91,12 @@ namespace SWP391.Service
                     SourceName = source.SourceName,
                     Keyword = keyword,
                     MaxResults = maxResults,
-                    RecordsFetched = recordsFetched,
+                    RecordsFetched = ingestionResult.SavedCount,
                     Status = syncJob.Status,
                     StartTime = syncJob.StartTime,
                     EndTime = syncJob.EndTime,
                     ErrorMessage = syncJob.ErrorMessage,
+                    NotificationsCreated = notificationsCreated,
                     TrendComputation = trendResult.Data
                 });
             }
