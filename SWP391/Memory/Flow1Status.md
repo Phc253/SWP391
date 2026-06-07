@@ -8,10 +8,14 @@ Current implementation:
 - Successful syncs update the job to `Completed`.
 - Syncs where ingestion succeeds but trend computation fails update the job to `CompletedWithWarnings`.
 - Failed syncs update the job to `Failed` and store the error message.
+- Optional scheduled OpenAlex sync is available through `DataSyncSchedulerHostedService` and the `DataSyncScheduler` appsettings section.
+- Metadata ingestion now returns newly saved paper IDs so downstream services can act only on new papers.
+- After ingestion, `DataSyncService` triggers `NotificationTriggerService` to notify users following matching journals or research topics.
+- Notifications are stored in the existing `Notifications` table with `RelatedType = "Paper"` and `RelatedId = PaperId`; app-level duplicate checks prevent repeat user-paper notifications.
+- `DataSyncResponse` includes `NotificationsCreated` for admin visibility.
 - After metadata ingestion, the pipeline calls `TrendService.ComputeTrendsAsync()` to refresh `PublicationTrends`.
 
 Still pending:
-- Add an optional scheduler trigger for periodic sync.
 - Add database-level duplicate protection for paper external IDs, preferably a unique index on `(SourceId, ExternalId)` after checking existing duplicates.
-- Generate notifications for users following journals or research topics when newly ingested papers match their follows.
+- Consider database-level duplicate protection for notifications, such as a filtered unique index on `(UserId, RelatedType, RelatedId)` for `RelatedType = 'Paper'`.
 - Consider persisting richer sync metrics if the reporting/admin UI needs them later.
