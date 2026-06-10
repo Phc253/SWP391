@@ -305,6 +305,9 @@ public partial class ScientificTrendDbContext : DbContext
 
             entity.HasIndex(e => e.Email, "UQ__Users__A9D105340115A41D").IsUnique();
 
+            entity.Property(e => e.ActorType)
+                .HasMaxLength(50)
+                .HasDefaultValue("Student");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.DateOfBirth).HasColumnType("date");
             entity.Property(e => e.Email).HasMaxLength(255);

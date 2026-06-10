@@ -30,7 +30,7 @@ namespace SWP391.Service
                 return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Author', 'Journal', 'ResearchTopic').");
             }
 
-            var type = request.TargetType.Trim();
+            var type = NormalizeTargetType(request.TargetType);
 
             // [BƯỚC 1]: Kiểm tra thực thể có tồn tại không
             if (type.Equals("Author", StringComparison.OrdinalIgnoreCase))
@@ -164,6 +164,28 @@ namespace SWP391.Service
             }
 
             return ServiceResult<List<FollowItemResponse>>.Ok(resultList);
+        }
+
+        private static string NormalizeTargetType(string targetType)
+        {
+            var type = targetType.Trim();
+            if (type.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+                type.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
+            {
+                return "ResearchTopic";
+            }
+
+            if (type.Equals("Journal", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Journal";
+            }
+
+            if (type.Equals("Author", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Author";
+            }
+
+            return type;
         }
     }
 }

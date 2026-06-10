@@ -7,6 +7,7 @@ using SWP391.Models.Dashboard;
 using SWP391.Models.Report;
 using SWP391.Models.Admin;
 using SWP391.Models.Notification;
+using SWP391.Models.Integration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -88,6 +89,7 @@ namespace SWP391
             builder.Services.AddScoped<ReportService>();
             builder.Services.AddScoped<NotificationRepository>();
             builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<NotificationTriggerService>();
             builder.Services.AddScoped<AdminRepository>();
             builder.Services.AddScoped<AdminService>();
             builder.Services.AddScoped<BookmarkRepository>();
