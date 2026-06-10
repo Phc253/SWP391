@@ -6,6 +6,7 @@ namespace SWP391.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Policy = "IsMember")]
     public class TrendsController : ControllerBase
     {
         private readonly TrendService _trendService;
