@@ -98,7 +98,12 @@ namespace SWP391
             builder.Services.AddScoped<AuthorService>();
             builder.Services.AddScoped<FollowRepository>();
             builder.Services.AddScoped<FollowService>();
+            builder.Services.AddScoped<ActivityLogRepository>();
+            builder.Services.AddScoped<ActivityLogService>();
             builder.Services.AddHostedService<TrendComputeBackgroundService>();
+            builder.Services.Configure<DataSyncSchedulerOptions>(
+                builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
+            builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

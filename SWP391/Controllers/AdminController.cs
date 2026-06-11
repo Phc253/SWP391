@@ -11,10 +11,12 @@ namespace SWP391.Controllers
     public class AdminController : ControllerBase
     {
         private readonly AdminService _adminService;
+        private readonly ActivityLogService _activityLogService;
 
-        public AdminController(AdminService adminService)
+        public AdminController(AdminService adminService, ActivityLogService activityLogService)
         {
             _adminService = adminService;
+            _activityLogService = activityLogService;
         }
 
         // ── User Management ───────────────────────────────────────────────────────────
@@ -102,6 +104,80 @@ namespace SWP391.Controllers
             var result = await _adminService.UpdateSettingAsync(key, request.Value);
             if (!result.Success)
                 return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Activity Logs ─────────────────────────────────────────────────────────────
+
+        // GET: api/admin/activity-logs?page=1&pageSize=20&userId=&action=
+        [HttpGet("activity-logs")]
+        public async Task<IActionResult> GetActivityLogs(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] int? userId = null,
+            [FromQuery] string? action = null)
+        {
+            var result = await _activityLogService.GetLogsAsync(page, pageSize, userId, action);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Scheduler Configuration ───────────────────────────────────────────────────
+
+        // GET: api/admin/scheduler-config
+        [HttpGet("scheduler-config")]
+        public async Task<IActionResult> GetSchedulerConfig()
+        {
+            var result = await _adminService.GetSchedulerConfigAsync();
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // PUT: api/admin/scheduler-config
+        [HttpPut("scheduler-config")]
+        public async Task<IActionResult> UpdateSchedulerConfig([FromBody] SchedulerConfigRequest request)
+        {
+            var result = await _adminService.UpdateSchedulerConfigAsync(request);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Role Assignment ───────────────────────────────────────────────────────────
+
+        // POST: api/admin/users/{id}/roles
+        // Body: { "roleId": 2 }
+        [HttpPost("users/{id}/roles")]
+        public async Task<IActionResult> AssignRole(int id, [FromBody] AssignRoleRequest request)
+        {
+            var result = await _adminService.AssignRoleAsync(id, request.RoleId);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("not found"))
+                    return NotFound(result);
+                return BadRequest(result);
+            }
+
+            return Ok(result.Data);
+        }
+
+        // DELETE: api/admin/users/{id}/roles/{roleId}
+        [HttpDelete("users/{id}/roles/{roleId}")]
+        public async Task<IActionResult> RemoveRole(int id, int roleId)
+        {
+            var result = await _adminService.RemoveRoleAsync(id, roleId);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("not found"))
+                    return NotFound(result);
+                return BadRequest(result);
+            }
 
             return Ok(result.Data);
         }

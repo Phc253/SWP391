@@ -15,6 +15,8 @@ public partial class ScientificTrendDbContext : DbContext
     {
     }
 
+    public virtual DbSet<ActivityLog> ActivityLogs { get; set; }
+
     public virtual DbSet<ApiDataSource> ApiDataSources { get; set; }
 
     public virtual DbSet<Author> Authors { get; set; }
@@ -330,6 +332,23 @@ public partial class ScientificTrendDbContext : DbContext
                         j.HasKey("UserId", "RoleId");
                         j.ToTable("UserRoles");
                     });
+        });
+
+        modelBuilder.Entity<ActivityLog>(entity =>
+        {
+            entity.HasKey(e => e.ActivityLogId);
+
+            entity.HasIndex(e => e.CreatedAt, "IX_ActivityLogs_CreatedAt");
+            entity.HasIndex(e => e.UserId, "IX_ActivityLogs_UserId");
+
+            entity.Property(e => e.Action).HasMaxLength(100);
+            entity.Property(e => e.TargetType).HasMaxLength(50);
+            entity.Property(e => e.IpAddress).HasMaxLength(45);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         OnModelCreatingPartial(modelBuilder);
