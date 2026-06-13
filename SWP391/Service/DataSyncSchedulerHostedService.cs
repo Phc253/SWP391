@@ -56,14 +56,7 @@ namespace SWP391.Service
                 using var scope = _scopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ScientificTrendDbContext>();
 
-                var keys = new[]
-                {
-                    "DataSync:Enabled",
-                    "DataSync:Keyword",
-                    "DataSync:MaxResults",
-                    "DataSync:CitationBatchSize",
-                    "DataSync:IntervalHours"
-                };
+                var keys = new[] { "DataSync:Enabled", "DataSync:Keyword", "DataSync:MaxResults", "DataSync:IntervalHours" };
                 var settingsList = await dbContext.SystemSettings
                     .Where(s => keys.Contains(s.SettingKey))
                     .AsNoTracking()
@@ -83,10 +76,6 @@ namespace SWP391.Service
                 if (settings.TryGetValue("DataSync:MaxResults", out var mrStr) && int.TryParse(mrStr, out var mrVal))
                     maxResults = mrVal;
 
-                int citationBatchSize = _options.CitationBatchSize;
-                if (settings.TryGetValue("DataSync:CitationBatchSize", out var cbStr) && int.TryParse(cbStr, out var cbVal))
-                    citationBatchSize = cbVal;
-
                 int intervalHours = _options.IntervalHours;
                 if (settings.TryGetValue("DataSync:IntervalHours", out var ihStr) && int.TryParse(ihStr, out var ihVal))
                     intervalHours = ihVal;
@@ -96,7 +85,6 @@ namespace SWP391.Service
                     Enabled       = enabled,
                     Keyword       = keyword,
                     MaxResults    = maxResults,
-                    CitationBatchSize = citationBatchSize,
                     IntervalHours = intervalHours
                 };
             }
@@ -115,47 +103,30 @@ namespace SWP391.Service
             effective ??= _options;
 
             _logger.LogInformation(
-                "Running scheduled OpenAlex fetch and citation synchronization. Keyword={Keyword}, MaxResults={MaxResults}, CitationBatchSize={CitationBatchSize}.",
+                "Running scheduled OpenAlex sync. Keyword={Keyword}, MaxResults={MaxResults}.",
                 effective.GetKeyword(),
-                effective.GetMaxResults(),
-                effective.GetCitationBatchSize());
+                effective.GetMaxResults());
 
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var dataSyncService = scope.ServiceProvider.GetRequiredService<DataSyncService>();
 
-                var fetchResult = await dataSyncService.FetchOpenAlexAsync(
+                var result = await dataSyncService.SyncOpenAlexAsync(
                     effective.GetKeyword(),
                     effective.GetMaxResults());
 
-                if (!fetchResult.Success)
+                if (!result.Success)
                 {
-                    _logger.LogWarning("Scheduled OpenAlex fetch failed: {Error}", fetchResult.Error);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "Scheduled OpenAlex fetch completed. SyncJobId={SyncJobId}, RecordsFetched={RecordsFetched}, Status={Status}.",
-                        fetchResult.Data?.SyncJobId,
-                        fetchResult.Data?.RecordsFetched,
-                        fetchResult.Data?.Status);
-                }
-
-                var citationResult = await dataSyncService.SynchronizeOpenAlexCitationsAsync(
-                    effective.GetCitationBatchSize());
-
-                if (!citationResult.Success)
-                {
-                    _logger.LogWarning("Scheduled OpenAlex citation synchronization failed: {Error}", citationResult.Error);
+                    _logger.LogWarning("Scheduled OpenAlex sync failed: {Error}", result.Error);
                     return;
                 }
 
                 _logger.LogInformation(
-                    "Scheduled OpenAlex citation synchronization completed. SyncJobId={SyncJobId}, Updated={Updated}, Status={Status}.",
-                    citationResult.Data?.SyncJobId,
-                    citationResult.Data?.RecordsUpdated,
-                    citationResult.Data?.Status);
+                    "Scheduled OpenAlex sync completed. SyncJobId={SyncJobId}, RecordsFetched={RecordsFetched}, Status={Status}.",
+                    result.Data?.SyncJobId,
+                    result.Data?.RecordsFetched,
+                    result.Data?.Status);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

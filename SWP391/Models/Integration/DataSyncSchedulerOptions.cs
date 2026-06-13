@@ -10,8 +10,6 @@ namespace SWP391.Models.Integration
 
         public int MaxResults { get; set; } = 20;
 
-        public int CitationBatchSize { get; set; } = 200;
-
         public int IntervalHours { get; set; } = 24;
 
         public bool RunOnStartup { get; set; } = false;
@@ -24,11 +22,6 @@ namespace SWP391.Models.Integration
         public int GetMaxResults()
         {
             return Math.Clamp(MaxResults, 1, 200);
-        }
-
-        public int GetCitationBatchSize()
-        {
-            return Math.Clamp(CitationBatchSize, 1, 1000);
         }
 
         public string GetKeyword()
