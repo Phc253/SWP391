@@ -12,6 +12,7 @@ namespace SWP391.Service
 
         private readonly ScientificTrendDbContext _dbContext;
         private readonly AcademicDataIntegrationService _integrationService;
+        private readonly TrendService _trendService;
         private readonly NotificationTriggerService _notificationTriggerService;
         private readonly ActivityLogService _activityLogService;
         private readonly ILogger<DataSyncService> _logger;
@@ -19,18 +20,20 @@ namespace SWP391.Service
         public DataSyncService(
             ScientificTrendDbContext dbContext,
             AcademicDataIntegrationService integrationService,
+            TrendService trendService,
             NotificationTriggerService notificationTriggerService,
             ActivityLogService activityLogService,
             ILogger<DataSyncService> logger)
         {
             _dbContext = dbContext;
             _integrationService = integrationService;
+            _trendService = trendService;
             _notificationTriggerService = notificationTriggerService;
             _activityLogService = activityLogService;
             _logger = logger;
         }
 
-        public async Task<ServiceResult<DataSyncResponse>> FetchOpenAlexAsync(string keyword, int maxResults)
+        public async Task<ServiceResult<DataSyncResponse>> SyncOpenAlexAsync(string keyword, int maxResults)
         {
             keyword = string.IsNullOrWhiteSpace(keyword) ? "Computer Science" : keyword.Trim();
             maxResults = Math.Clamp(maxResults, 1, 200);
@@ -49,10 +52,10 @@ namespace SWP391.Service
 
             await _activityLogService.LogAsync(
                 userId: null,
-                action: "OpenAlexFetchTriggered",
+                action: "SyncTriggered",
                 targetType: "SyncJob",
                 targetId: syncJob.SyncJobId,
-                details: $"OpenAlex fetch started: keyword={keyword}, maxResults={maxResults}");
+                details: $"OpenAlex sync started: keyword={keyword}, maxResults={maxResults}");
 
             try
             {
@@ -73,6 +76,12 @@ namespace SWP391.Service
                     warnings.Add("Notification trigger failed: " + ex.Message);
                 }
 
+                var trendResult = await _trendService.ComputeTrendsAsync();
+                if (!trendResult.Success)
+                {
+                    warnings.Add("Trend computation failed: " + trendResult.Error);
+                }
+
                 if (warnings.Any())
                 {
                     syncJob.Status = "CompletedWithWarnings";
@@ -88,7 +97,7 @@ namespace SWP391.Service
 
                 await _activityLogService.LogAsync(
                     userId: null,
-                    action: "OpenAlexFetchCompleted",
+                    action: "SyncCompleted",
                     targetType: "SyncJob",
                     targetId: syncJob.SyncJobId,
                     details: $"Status={syncJob.Status}, RecordsFetched={syncJob.RecordsFetched}");
@@ -96,20 +105,21 @@ namespace SWP391.Service
                 return ServiceResult<DataSyncResponse>.Ok(new DataSyncResponse
                 {
                     SyncJobId = syncJob.SyncJobId,
-                    SourceName = source.SourceName ?? OpenAlexSourceName,
+                    SourceName = source.SourceName,
                     Keyword = keyword,
                     MaxResults = maxResults,
                     RecordsFetched = ingestionResult.SavedCount,
-                    Status = syncJob.Status ?? "Completed",
+                    Status = syncJob.Status,
                     StartTime = syncJob.StartTime,
                     EndTime = syncJob.EndTime,
                     ErrorMessage = syncJob.ErrorMessage,
-                    NotificationsCreated = notificationsCreated
+                    NotificationsCreated = notificationsCreated,
+                    TrendComputation = trendResult.Data
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "OpenAlex fetch failed for keyword {Keyword}", keyword);
+                _logger.LogError(ex, "OpenAlex sync failed for keyword {Keyword}", keyword);
 
                 syncJob.Status = "Failed";
                 syncJob.EndTime = DateTime.UtcNow;
@@ -118,148 +128,12 @@ namespace SWP391.Service
 
                 await _activityLogService.LogAsync(
                     userId: null,
-                    action: "OpenAlexFetchFailed",
+                    action: "SyncFailed",
                     targetType: "SyncJob",
                     targetId: syncJob.SyncJobId,
                     details: ex.Message);
 
-                return ServiceResult<DataSyncResponse>.Fail($"OpenAlex fetch failed. SyncJobId={syncJob.SyncJobId}. Error: {ex.Message}");
-            }
-        }
-
-        public Task<ServiceResult<DataSyncResponse>> SyncOpenAlexAsync(string keyword, int maxResults)
-        {
-            return FetchOpenAlexAsync(keyword, maxResults);
-        }
-
-        public async Task<ServiceResult<CitationSyncResponse>> SynchronizeOpenAlexCitationsAsync(int maxPapers = 200)
-        {
-            maxPapers = Math.Clamp(maxPapers, 1, 1000);
-
-            var source = await EnsureOpenAlexSourceAsync();
-            var syncJob = new SyncJob
-            {
-                SourceId = source.SourceId,
-                StartTime = DateTime.UtcNow,
-                Status = "Running",
-                RecordsFetched = 0
-            };
-
-            _dbContext.SyncJobs.Add(syncJob);
-            await _dbContext.SaveChangesAsync();
-
-            await _activityLogService.LogAsync(
-                userId: null,
-                action: "CitationSyncTriggered",
-                targetType: "SyncJob",
-                targetId: syncJob.SyncJobId,
-                details: $"OpenAlex citation synchronization started: maxPapers={maxPapers}");
-
-            try
-            {
-                var papers = await _dbContext.Papers
-                    .Where(p => p.SourceId == source.SourceId && p.ExternalId != null && p.ExternalId != "")
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Take(maxPapers)
-                    .ToListAsync();
-
-                int fetched = 0;
-                int updated = 0;
-                int unchanged = 0;
-                int failed = 0;
-
-                foreach (var paper in papers)
-                {
-                    int? citationCount;
-                    try
-                    {
-                        citationCount = await _integrationService.FetchCitationCountFromOpenAlexAsync(paper.ExternalId!);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(
-                            ex,
-                            "Citation synchronization failed for PaperId={PaperId}, ExternalId={ExternalId}",
-                            paper.PaperId,
-                            paper.ExternalId);
-                        failed++;
-                        continue;
-                    }
-
-                    if (!citationCount.HasValue)
-                    {
-                        failed++;
-                        continue;
-                    }
-
-                    fetched++;
-
-                    if (paper.CitationCount == citationCount.Value)
-                    {
-                        unchanged++;
-                        continue;
-                    }
-
-                    paper.CitationCount = citationCount.Value;
-                    updated++;
-                }
-
-                syncJob.RecordsFetched = fetched;
-                syncJob.EndTime = DateTime.UtcNow;
-
-                if (failed > 0)
-                {
-                    syncJob.Status = "CompletedWithWarnings";
-                    syncJob.ErrorMessage = $"{failed} citation records could not be fetched from OpenAlex.";
-                }
-                else
-                {
-                    syncJob.Status = "Completed";
-                }
-
-                await _dbContext.SaveChangesAsync();
-
-                await _activityLogService.LogAsync(
-                    userId: null,
-                    action: "CitationSyncCompleted",
-                    targetType: "SyncJob",
-                    targetId: syncJob.SyncJobId,
-                    details: $"Status={syncJob.Status}, Fetched={fetched}, Updated={updated}, Failed={failed}");
-
-                return ServiceResult<CitationSyncResponse>.Ok(new CitationSyncResponse
-                {
-                    SyncJobId = syncJob.SyncJobId,
-                    SourceName = source.SourceName ?? OpenAlexSourceName,
-                    MaxPapers = maxPapers,
-                    TotalPapersScanned = papers.Count,
-                    RecordsFetched = fetched,
-                    RecordsUpdated = updated,
-                    RecordsUnchanged = unchanged,
-                    RecordsFailed = failed,
-                    Status = syncJob.Status ?? "Completed",
-                    StartTime = syncJob.StartTime,
-                    EndTime = syncJob.EndTime,
-                    ErrorMessage = syncJob.ErrorMessage
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "OpenAlex citation synchronization failed.");
-
-                syncJob.Status = "Failed";
-                syncJob.EndTime = DateTime.UtcNow;
-                syncJob.ErrorMessage = ex.Message;
-                await _dbContext.SaveChangesAsync();
-
-                await _activityLogService.LogAsync(
-                    userId: null,
-                    action: "CitationSyncFailed",
-                    targetType: "SyncJob",
-                    targetId: syncJob.SyncJobId,
-                    details: ex.Message);
-
-                return ServiceResult<CitationSyncResponse>.Fail(
-                    $"OpenAlex citation synchronization failed. SyncJobId={syncJob.SyncJobId}. Error: {ex.Message}");
+                return ServiceResult<DataSyncResponse>.Fail($"OpenAlex sync failed. SyncJobId={syncJob.SyncJobId}. Error: {ex.Message}");
             }
         }
 

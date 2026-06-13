@@ -1,3 +1,5 @@
+using SWP391.Models.Trend;
+
 namespace SWP391.Models.Integration
 {
     public class DataSyncResponse
@@ -12,5 +14,6 @@ namespace SWP391.Models.Integration
         public DateTime? EndTime { get; set; }
         public string? ErrorMessage { get; set; }
         public int NotificationsCreated { get; set; }
+        public ComputeTrendsResponse? TrendComputation { get; set; }
     }
 }
