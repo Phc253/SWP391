@@ -13,6 +13,8 @@ public partial class Paper
 
     public int? PublicationYear { get; set; }
 
+    public int? CitationCount { get; set; }
+
     public int? JournalId { get; set; }
 
     public int? SourceId { get; set; }
@@ -22,6 +24,8 @@ public partial class Paper
     public DateTime? CreatedAt { get; set; }
 
     public virtual Journal? Journal { get; set; }
+
+    public virtual ICollection<Author> Authors { get; set; } = new List<Author>();
 
     public virtual ICollection<PaperAuthor> PaperAuthors { get; set; } = new List<PaperAuthor>();
 

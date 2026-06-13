@@ -10,10 +10,12 @@ namespace SWP391.Controllers
     public class AccountController : ControllerBase
     {
         private readonly AccountService _accountServices;
+        private readonly ActivityLogService _activityLogService;
 
-        public AccountController(AccountService accountServices)
+        public AccountController(AccountService accountServices, ActivityLogService activityLogService)
         {
             _accountServices = accountServices;
+            _activityLogService = activityLogService;
         }
 
         [HttpPost("register")]
@@ -37,7 +39,26 @@ namespace SWP391.Controllers
                 return Unauthorized(new { message = result.Error });
             }
 
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _activityLogService.LogAsync(
+                userId: result.Data!.UserId,
+                action: "Login",
+                details: $"User {result.Data.Email} logged in",
+                ipAddress: ip);
+
             return Ok(result.Data);
+        }
+
+        [HttpGet("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+        {
+            var result = await _accountServices.VerifyEmailAsync(token);
+            if (!result.Success)
+            {
+                return BadRequest(new { message = result.Error });
+            }
+
+            return Ok(new { message = result.Data });
         }
 
         // [MỚI] Đây là API Test việc Protect tài nguyên bằng JWT
@@ -48,12 +69,20 @@ namespace SWP391.Controllers
             // Trong API này bạn có quyền đọc các Claims đã được giải mã mà hệ thống lấy được từ Token
             var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
             var email = User.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
+            var fullName = User.FindFirstValue(System.Security.Claims.ClaimTypes.Name);
+            var actorType = User.FindFirstValue("actor_type");
+            var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
+                .Select(c => c.Value)
+                .ToList();
 
             return Ok(new 
             {
-                Message = "Nếu bạn thấy chữ này có nghĩa là Token của bạn hợp lệ!",
+
                 UserId = userId,
-                Email = email
+                Email = email,
+                FullName = fullName,
+                ActorType = actorType,
+                Roles = roles
             });
         }
 

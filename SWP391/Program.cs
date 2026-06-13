@@ -3,6 +3,11 @@ using SWP391.Entities;
 using SWP391.Middlewares;
 using SWP391.Repositories;
 using SWP391.Service;
+using SWP391.Models.Dashboard;
+using SWP391.Models.Report;
+using SWP391.Models.Admin;
+using SWP391.Models.Notification;
+using SWP391.Models.Integration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -16,7 +21,7 @@ namespace SWP391
         {
             var builder = WebApplication.CreateBuilder(args);
             // CORS for the Frontend
-            builder.Services.AddCors(options =>
+            builder.Services.AddCors(options => 
             {
                 options.AddDefaultPolicy(policy =>
                 {
@@ -53,24 +58,52 @@ namespace SWP391
             });
             // ===============================================
 
-            // === [THÊM M?I] C?u hình Policy-Based Authorization ===
+            // === [THï¿½M M?I] C?u hï¿½nh Policy-Based Authorization ===
             builder.Services.AddAuthorization(options =>
             {
-                // Chính sách: Ch? có Admin m?i ???c phép
-                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+                // Chï¿½nh sï¿½ch: Ch? cï¿½ Administrator m?i ???c phï¿½p
+                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrator"));
                 
-                // Chính sách: Cho phép Admin HO?C Researcher (Nhà nghiên c?u)
-                options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Admin", "Researcher"));
+                // Chï¿½nh sï¿½ch: Cho phï¿½p Administrator HO?C Researcher (Nhï¿½ nghiï¿½n c?u)
+                options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
-                // Chính sách: Yêu c?u là Reader tr? lên
-                options.AddPolicy("IsReader", policy => policy.RequireRole("Admin", "Researcher", "Reader"));
+                // Chï¿½nh sï¿½ch: Yï¿½u c?u lï¿½ Member tr? lï¿½n
+                options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
             });
             // ===============================================
 
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+                
+            builder.Services.AddHttpClient();
             builder.Services.AddScoped<AccountRepository>();
             builder.Services.AddScoped<AccountService>();
+            builder.Services.AddScoped<PaperRepository>();
+            builder.Services.AddScoped<PaperService>();
+            builder.Services.AddScoped<TrendRepository>();
+            builder.Services.AddScoped<TrendService>();
+            builder.Services.AddScoped<AcademicDataIntegrationService>();
+            builder.Services.AddScoped<DataSyncService>();
+            builder.Services.AddScoped<DashboardRepository>();
+            builder.Services.AddScoped<DashboardService>();
+            builder.Services.AddScoped<ReportService>();
+            builder.Services.AddScoped<NotificationRepository>();
+            builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<NotificationTriggerService>();
+            builder.Services.AddScoped<AdminRepository>();
+            builder.Services.AddScoped<AdminService>();
+            builder.Services.AddScoped<BookmarkRepository>();
+            builder.Services.AddScoped<BookmarkService>();
+            builder.Services.AddScoped<AuthorRepository>();
+            builder.Services.AddScoped<AuthorService>();
+            builder.Services.AddScoped<FollowRepository>();
+            builder.Services.AddScoped<FollowService>();
+            builder.Services.AddScoped<ActivityLogRepository>();
+            builder.Services.AddScoped<ActivityLogService>();
+            builder.Services.AddHostedService<TrendComputeBackgroundService>();
+            builder.Services.Configure<DataSyncSchedulerOptions>(
+                builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
+            builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

@@ -13,5 +13,7 @@ public partial class Author
 
     public string? ResearchArea { get; set; }
 
+    public virtual ICollection<Paper> Papers { get; set; } = new List<Paper>();
+
     public virtual ICollection<PaperAuthor> PaperAuthors { get; set; } = new List<PaperAuthor>();
 }
