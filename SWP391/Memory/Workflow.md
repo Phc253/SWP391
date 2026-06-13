@@ -102,7 +102,7 @@ Load Trend Data
 → Notifications (Consume triggered alerts)
 → System Configuration (Configure API Sources & Sync Schedule)
 → Admin Management
-Business Value
+Business Value  
 Người dùng hiểu xu hướng ngay lập tức.
 Hệ thống có khả năng quản trị.
 Cung cấp báo cáo nghiên cứu.
