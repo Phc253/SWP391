@@ -25,9 +25,16 @@ namespace SWP391.Service
             await RunIfNeededAsync(stoppingToken);
 
             using var timer = new PeriodicTimer(Interval);
-            while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
+            try
             {
-                await RunIfNeededAsync(stoppingToken);
+                while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken))
+                {
+                    await RunIfNeededAsync(stoppingToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on shutdown.
             }
         }
 
@@ -40,13 +47,23 @@ namespace SWP391.Service
 
                 // Skip if a snapshot was already written within the last 7 days.
                 var cutoff = DateTime.UtcNow.AddDays(-7);
-                bool recentExists = await db.TrendSnapshots
+                bool recentSnapshotExists = await db.TrendSnapshots
                     .AnyAsync(s => s.SnapshotDate >= cutoff, ct);
 
-                if (recentExists)
+                if (recentSnapshotExists)
                 {
                     _logger.LogInformation(
                         "TrendCompute: skipped — a snapshot already exists within the last 7 days.");
+                    return;
+                }
+
+                bool recentlyComputed = await db.PublicationTrends
+                    .AnyAsync(t => t.LastUpdated.HasValue && t.LastUpdated.Value >= cutoff, ct);
+
+                if (recentlyComputed)
+                {
+                    _logger.LogInformation(
+                        "TrendCompute: skipped - publication trends were updated within the last 7 days.");
                     return;
                 }
 
