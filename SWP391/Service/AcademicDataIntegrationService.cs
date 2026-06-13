@@ -139,6 +139,33 @@ namespace SWP391.Service
             return source;
         }
 
+        public async Task<int?> FetchCitationCountFromOpenAlexAsync(string externalId)
+        {
+            var workId = NormalizeOpenAlexWorkId(externalId);
+            if (string.IsNullOrWhiteSpace(workId))
+            {
+                return null;
+            }
+
+            var url = $"https://api.openalex.org/works/{Uri.EscapeDataString(workId)}";
+            var response = await _httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "OpenAlex citation fetch failed for ExternalId={ExternalId} Status={Status}",
+                    externalId,
+                    response.StatusCode);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var work = JsonSerializer.Deserialize<WorkData>(
+                content,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            return work?.CitationCount;
+        }
+
         // Processes a single OpenAlex work: deduplicates, creates journal/authors/keywords, saves paper.
         // Returns the new PaperId when saved, or null for duplicates/invalid works.
         private async Task<long?> ProcessWorkAsync(WorkData work, ApiDataSource source)
@@ -148,8 +175,6 @@ namespace SWP391.Service
             var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
             if (existingPaper != null)
             {
-                existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
-                await _dbContext.SaveChangesAsync();
                 _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
                 return null;
             }
@@ -250,6 +275,18 @@ namespace SWP391.Service
 
             await _dbContext.SaveChangesAsync();
             return paper.PaperId;
+        }
+
+        private static string? NormalizeOpenAlexWorkId(string? externalId)
+        {
+            if (string.IsNullOrWhiteSpace(externalId))
+            {
+                return null;
+            }
+
+            var trimmed = externalId.Trim();
+            var lastSlash = trimmed.LastIndexOf('/');
+            return lastSlash >= 0 ? trimmed[(lastSlash + 1)..] : trimmed;
         }
 
         // Decodes OpenAlex abstract_inverted_index (word → position list) back into plain text.
