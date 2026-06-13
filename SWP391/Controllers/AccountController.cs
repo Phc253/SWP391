@@ -10,10 +10,12 @@ namespace SWP391.Controllers
     public class AccountController : ControllerBase
     {
         private readonly AccountService _accountServices;
+        private readonly ActivityLogService _activityLogService;
 
-        public AccountController(AccountService accountServices)
+        public AccountController(AccountService accountServices, ActivityLogService activityLogService)
         {
             _accountServices = accountServices;
+            _activityLogService = activityLogService;
         }
 
         [HttpPost("register")]
@@ -36,6 +38,13 @@ namespace SWP391.Controllers
             {
                 return Unauthorized(new { message = result.Error });
             }
+
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+            await _activityLogService.LogAsync(
+                userId: result.Data!.UserId,
+                action: "Login",
+                details: $"User {result.Data.Email} logged in",
+                ipAddress: ip);
 
             return Ok(result.Data);
         }

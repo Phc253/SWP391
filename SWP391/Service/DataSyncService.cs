@@ -14,6 +14,7 @@ namespace SWP391.Service
         private readonly AcademicDataIntegrationService _integrationService;
         private readonly TrendService _trendService;
         private readonly NotificationTriggerService _notificationTriggerService;
+        private readonly ActivityLogService _activityLogService;
         private readonly ILogger<DataSyncService> _logger;
 
         public DataSyncService(
@@ -21,12 +22,14 @@ namespace SWP391.Service
             AcademicDataIntegrationService integrationService,
             TrendService trendService,
             NotificationTriggerService notificationTriggerService,
+            ActivityLogService activityLogService,
             ILogger<DataSyncService> logger)
         {
             _dbContext = dbContext;
             _integrationService = integrationService;
             _trendService = trendService;
             _notificationTriggerService = notificationTriggerService;
+            _activityLogService = activityLogService;
             _logger = logger;
         }
 
@@ -46,6 +49,13 @@ namespace SWP391.Service
 
             _dbContext.SyncJobs.Add(syncJob);
             await _dbContext.SaveChangesAsync();
+
+            await _activityLogService.LogAsync(
+                userId: null,
+                action: "SyncTriggered",
+                targetType: "SyncJob",
+                targetId: syncJob.SyncJobId,
+                details: $"OpenAlex sync started: keyword={keyword}, maxResults={maxResults}");
 
             try
             {
@@ -85,6 +95,13 @@ namespace SWP391.Service
                 syncJob.EndTime = DateTime.UtcNow;
                 await _dbContext.SaveChangesAsync();
 
+                await _activityLogService.LogAsync(
+                    userId: null,
+                    action: "SyncCompleted",
+                    targetType: "SyncJob",
+                    targetId: syncJob.SyncJobId,
+                    details: $"Status={syncJob.Status}, RecordsFetched={syncJob.RecordsFetched}");
+
                 return ServiceResult<DataSyncResponse>.Ok(new DataSyncResponse
                 {
                     SyncJobId = syncJob.SyncJobId,
@@ -108,6 +125,13 @@ namespace SWP391.Service
                 syncJob.EndTime = DateTime.UtcNow;
                 syncJob.ErrorMessage = ex.Message;
                 await _dbContext.SaveChangesAsync();
+
+                await _activityLogService.LogAsync(
+                    userId: null,
+                    action: "SyncFailed",
+                    targetType: "SyncJob",
+                    targetId: syncJob.SyncJobId,
+                    details: ex.Message);
 
                 return ServiceResult<DataSyncResponse>.Fail($"OpenAlex sync failed. SyncJobId={syncJob.SyncJobId}. Error: {ex.Message}");
             }

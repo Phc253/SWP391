@@ -96,5 +96,45 @@ namespace SWP391.Repositories
             await _dbContext.SaveChangesAsync();
             return setting;
         }
+
+        // ── Role Assignment ──────────────────────────────────────────────────────────
+
+        public async Task<User?> AssignRoleAsync(int userId, int roleId)
+        {
+            var user = await _dbContext.Users
+                .Include(u => u.Roles)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            if (user == null) return null;
+
+            var role = await _dbContext.Roles.FindAsync(roleId);
+            if (role == null) return null;
+
+            if (!user.Roles.Any(r => r.RoleId == roleId))
+            {
+                user.Roles.Add(role);
+                await _dbContext.SaveChangesAsync();
+            }
+
+            return user;
+        }
+
+        public async Task<User?> RemoveRoleAsync(int userId, int roleId)
+        {
+            var user = await _dbContext.Users
+                .Include(u => u.Roles)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
+
+            if (user == null) return null;
+
+            var role = user.Roles.FirstOrDefault(r => r.RoleId == roleId);
+            if (role != null)
+            {
+                user.Roles.Remove(role);
+                await _dbContext.SaveChangesAsync();
+            }
+
+            return user;
+        }
     }
 }
