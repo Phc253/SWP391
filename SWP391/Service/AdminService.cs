@@ -1,5 +1,6 @@
 using System.Net.Mail;
 using System.Security.Cryptography;
+using Microsoft.EntityFrameworkCore;
 using SWP391.Entities;
 using SWP391.Models;
 using SWP391.Models.Account;
@@ -12,11 +13,16 @@ namespace SWP391.Service
     {
         private readonly AdminRepository _adminRepository;
         private readonly ActivityLogService _activityLogService;
+        private readonly ScientificTrendDbContext _dbContext;
 
-        public AdminService(AdminRepository adminRepository, ActivityLogService activityLogService)
+        public AdminService(
+            AdminRepository adminRepository,
+            ActivityLogService activityLogService,
+            ScientificTrendDbContext dbContext)
         {
             _adminRepository = adminRepository;
             _activityLogService = activityLogService;
+            _dbContext = dbContext;
         }
 
         // ── User Management ───────────────────────────────────────────────────────────
@@ -384,6 +390,78 @@ namespace SWP391.Service
             {
                 return ServiceResult<AdminUserResponse>.Fail(
                     "An error occurred while removing role: " + ex.Message);
+            }
+        }
+
+        // ── Admin Stats Dashboard ─────────────────────────────────────────────────────
+
+        // Returns an operational overview: user health, sync job health (last 30 days),
+        // notification total, and recent activity. All queries run in parallel.
+        // SyncJob status strings used by DataSyncService: "Completed", "CompletedWithWarnings", "Failed"
+        // EF Core DbContext is not thread-safe — queries must be sequential, not Task.WhenAll.
+        public async Task<ServiceResult<AdminStatsResponse>> GetAdminStatsAsync()
+        {
+            try
+            {
+                var cutoff30 = DateTime.UtcNow.AddDays(-30);
+                var cutoff7  = DateTime.UtcNow.AddDays(-7);
+
+                var activeUsers   = await _dbContext.Users.CountAsync(u => u.IsActive == true);
+                var inactiveUsers = await _dbContext.Users.CountAsync(u => u.IsActive != true);
+                var totalNotif    = await _dbContext.Notifications.CountAsync();
+                var logsLast7     = await _dbContext.ActivityLogs.CountAsync(a => a.CreatedAt >= cutoff7);
+                var lastSync      = await _dbContext.SyncJobs
+                                        .Where(j => j.EndTime.HasValue)
+                                        .OrderByDescending(j => j.EndTime)
+                                        .Select(j => j.EndTime)
+                                        .FirstOrDefaultAsync();
+                var jobs30        = await _dbContext.SyncJobs
+                                        .Where(j => j.StartTime >= cutoff30)
+                                        .ToListAsync();
+                var recentJobs    = await _dbContext.SyncJobs
+                                        .Include(j => j.Source)
+                                        .OrderByDescending(j => j.StartTime)
+                                        .Take(5)
+                                        .AsNoTracking()
+                                        .ToListAsync();
+                var roleCounts    = await _dbContext.Roles
+                                        .Select(r => new RoleCountItem
+                                        {
+                                            RoleName = r.RoleName,
+                                            Count    = r.Users.Count()
+                                        })
+                                        .ToListAsync();
+
+                var response = new AdminStatsResponse
+                {
+                    ActiveUsers                   = activeUsers,
+                    InactiveUsers                 = inactiveUsers,
+                    UsersByRole                   = roleCounts,
+                    SyncJobsLast30Days            = jobs30.Count,
+                    SyncJobsCompleted             = jobs30.Count(j => j.Status == "Completed"),
+                    SyncJobsCompletedWithWarnings = jobs30.Count(j => j.Status == "CompletedWithWarnings"),
+                    SyncJobsFailed                = jobs30.Count(j => j.Status == "Failed"),
+                    RecentSyncJobs                = recentJobs.Select(j => new RecentSyncJobItem
+                    {
+                        SyncJobId      = j.SyncJobId,
+                        SourceName     = j.Source?.SourceName ?? "Unknown",
+                        StartTime      = j.StartTime,
+                        EndTime        = j.EndTime,
+                        Status         = j.Status,
+                        RecordsFetched = j.RecordsFetched,
+                        ErrorMessage   = j.ErrorMessage
+                    }).ToList(),
+                    TotalNotifications    = totalNotif,
+                    ActivityLogsLast7Days = logsLast7,
+                    LastSyncTime          = lastSync
+                };
+
+                return ServiceResult<AdminStatsResponse>.Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<AdminStatsResponse>.Fail(
+                    "An error occurred while fetching admin stats: " + ex.Message);
             }
         }
 

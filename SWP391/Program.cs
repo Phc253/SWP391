@@ -85,6 +85,7 @@ namespace SWP391
             builder.Services.AddScoped<AcademicDataIntegrationService>();
             builder.Services.AddScoped<DataSyncService>();
             builder.Services.AddScoped<DashboardRepository>();
+            builder.Services.AddScoped<DashboardReportRepository>();
             builder.Services.AddScoped<DashboardService>();
             builder.Services.AddScoped<ReportService>();
             builder.Services.AddScoped<NotificationRepository>();

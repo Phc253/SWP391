@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SWP391.Service;
 
@@ -40,6 +41,34 @@ namespace SWP391.Controllers
                 return StatusCode(500, result);
 
             return Ok(result.Data);
+        }
+
+        // GET: api/reports/export/papers?year=2023&keywordText=AI
+        // Downloads all matching papers as a CSV file (no pagination).
+        [HttpGet("export/papers")]
+        [Authorize(Policy = "IsMember")]
+        public async Task<IActionResult> ExportPapersReport(
+            [FromQuery] int? year = null,
+            [FromQuery] string? keywordText = null)
+        {
+            var result = await _reportService.ExportPapersReportAsync(year, keywordText);
+            if (!result.Success)
+                return BadRequest(new { error = result.Error });
+            var bytes = System.Text.Encoding.UTF8.GetBytes(result.Data!);
+            return File(bytes, "text/csv", $"papers_report_{DateTime.UtcNow:yyyyMMdd}.csv");
+        }
+
+        // GET: api/reports/export/keyword-stats
+        // Downloads all keyword stats as a CSV file.
+        [HttpGet("export/keyword-stats")]
+        [Authorize(Policy = "IsMember")]
+        public async Task<IActionResult> ExportKeywordStats()
+        {
+            var result = await _reportService.ExportKeywordStatsAsync();
+            if (!result.Success)
+                return StatusCode(500, new { error = result.Error });
+            var bytes = System.Text.Encoding.UTF8.GetBytes(result.Data!);
+            return File(bytes, "text/csv", $"keyword_stats_{DateTime.UtcNow:yyyyMMdd}.csv");
         }
     }
 }

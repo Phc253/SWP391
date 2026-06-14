@@ -73,6 +73,75 @@ namespace SWP391.Service
             }
         }
 
+        // Fetches ALL matching papers (no pagination) and serializes to CSV.
+        public async Task<ServiceResult<string>> ExportPapersReportAsync(int? year, string? keywordText)
+        {
+            try
+            {
+                var (papers, _) = await _paperRepository.SearchPapersAsync(
+                    keyword: keywordText, author: null, journal: null,
+                    page: 1, pageSize: int.MaxValue);
+
+                if (year.HasValue)
+                    papers = papers.Where(p => p.PublicationYear == year.Value).ToList();
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("PaperId,Title,PublicationYear,CitationCount,JournalName,Keywords,Authors");
+                foreach (var p in papers)
+                {
+                    sb.AppendLine(string.Join(",",
+                        p.PaperId,
+                        EscapeCsv(p.Title),
+                        p.PublicationYear?.ToString() ?? "",
+                        p.CitationCount?.ToString() ?? "",
+                        EscapeCsv(p.Journal?.JournalName ?? ""),
+                        EscapeCsv(string.Join(";", p.Keywords.Select(k => k.KeywordText ?? ""))),
+                        EscapeCsv(string.Join(";", p.Authors.Select(a => a.AuthorName ?? "")))));
+                }
+                return ServiceResult<string>.Ok(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<string>.Fail("Export failed: " + ex.Message);
+            }
+        }
+
+        // Serializes all keyword stats to CSV.
+        public async Task<ServiceResult<string>> ExportKeywordStatsAsync()
+        {
+            try
+            {
+                var statsResult = await GetKeywordStatsAsync();
+                if (!statsResult.Success)
+                    return ServiceResult<string>.Fail(statsResult.Error!);
+
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine("KeywordText,TotalPapers,FirstYear,LastYear");
+                foreach (var k in statsResult.Data!)
+                {
+                    sb.AppendLine(string.Join(",",
+                        EscapeCsv(k.KeywordText),
+                        k.TotalPapers,
+                        k.FirstYear?.ToString() ?? "",
+                        k.LastYear?.ToString() ?? ""));
+                }
+                return ServiceResult<string>.Ok(sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<string>.Fail("Export failed: " + ex.Message);
+            }
+        }
+
+        // RFC 4180: wrap in double-quotes when value contains comma, quote, or newline.
+        private static string EscapeCsv(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            if (value.Contains(',') || value.Contains('"') || value.Contains('\n'))
+                return $"\"{value.Replace("\"", "\"\"")}\"";
+            return value;
+        }
+
         // Returns all keywords with their total paper count and year span.
         public async Task<ServiceResult<List<KeywordStatReport>>> GetKeywordStatsAsync()
         {

@@ -211,5 +211,19 @@ namespace SWP391.Controllers
 
             return Ok(result.Data);
         }
+
+        // ── Admin Stats ───────────────────────────────────────────────────────────────
+
+        // GET: api/admin/stats
+        // Operational overview: user health, sync job health (last 30 days), recent activity.
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetAdminStats()
+        {
+            var result = await _adminService.GetAdminStatsAsync();
+            if (!result.Success)
+                return StatusCode(500, new { error = result.Error });
+
+            return Ok(result.Data);
+        }
     }
 }
