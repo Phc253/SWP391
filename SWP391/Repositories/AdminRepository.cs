@@ -14,11 +14,25 @@ namespace SWP391.Repositories
 
         // ── User Management ───────────────────────────────────────────────────────────
 
-        public async Task<(List<User> Users, int TotalCount)> GetUsersAsync(int page, int pageSize)
+        public async Task<(List<User> Users, int TotalCount)> GetUsersAsync(
+            int page, int pageSize, string? search = null, int? roleId = null)
         {
             var query = _dbContext.Users
                 .Include(u => u.Roles)
-                .OrderBy(u => u.UserId);
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(u =>
+                    u.Email.ToLower().Contains(term) ||
+                    (u.FullName != null && u.FullName.ToLower().Contains(term)));
+            }
+
+            if (roleId.HasValue)
+                query = query.Where(u => u.Roles.Any(r => r.RoleId == roleId.Value));
+
+            query = query.OrderBy(u => u.UserId);
 
             var total = await query.CountAsync();
             var users = await query
@@ -28,6 +42,38 @@ namespace SWP391.Repositories
                 .ToListAsync();
 
             return (users, total);
+        }
+
+        public async Task<List<Role>> GetRolesAsync()
+        {
+            return await _dbContext.Roles
+                .OrderBy(r => r.RoleId)
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task<User> CreateUserAsync(User user, int? roleId)
+        {
+            Role? role = null;
+            if (roleId.HasValue)
+                role = await _dbContext.Roles.FindAsync(roleId.Value);
+            role ??= await _dbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == "Member");
+
+            if (role != null)
+                user.Roles.Add(role);
+
+            _dbContext.Users.Add(user);
+            await _dbContext.SaveChangesAsync();
+
+            await _dbContext.Entry(user).Collection(u => u.Roles).LoadAsync();
+            return user;
+        }
+
+        public Task<User?> GetUserByEmailAsync(string email)
+        {
+            return _dbContext.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email == email);
         }
 
         public async Task<User?> GetUserByIdAsync(int userId)

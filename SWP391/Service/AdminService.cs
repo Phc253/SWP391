@@ -1,4 +1,8 @@
+using System.Net.Mail;
+using System.Security.Cryptography;
+using SWP391.Entities;
 using SWP391.Models;
+using SWP391.Models.Account;
 using SWP391.Models.Admin;
 using SWP391.Repositories;
 
@@ -17,14 +21,15 @@ namespace SWP391.Service
 
         // ── User Management ───────────────────────────────────────────────────────────
 
-        public async Task<ServiceResult<PagedResponse<AdminUserResponse>>> GetUsersAsync(int page, int pageSize)
+        public async Task<ServiceResult<PagedResponse<AdminUserResponse>>> GetUsersAsync(
+            int page, int pageSize, string? search = null, int? roleId = null)
         {
             try
             {
                 pageSize = Math.Clamp(pageSize, 1, 100);
                 page = Math.Max(1, page);
 
-                var (users, total) = await _adminRepository.GetUsersAsync(page, pageSize);
+                var (users, total) = await _adminRepository.GetUsersAsync(page, pageSize, search, roleId);
                 return ServiceResult<PagedResponse<AdminUserResponse>>.Ok(new PagedResponse<AdminUserResponse>
                 {
                     Page       = page,
@@ -38,6 +43,108 @@ namespace SWP391.Service
                 return ServiceResult<PagedResponse<AdminUserResponse>>.Fail(
                     "An error occurred while fetching users: " + ex.Message);
             }
+        }
+
+        public async Task<ServiceResult<List<RoleResponse>>> GetRolesAsync()
+        {
+            try
+            {
+                var roles = await _adminRepository.GetRolesAsync();
+                var response = roles.Select(r => new RoleResponse
+                {
+                    RoleId   = r.RoleId,
+                    RoleName = r.RoleName
+                }).ToList();
+                return ServiceResult<List<RoleResponse>>.Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<List<RoleResponse>>.Fail(
+                    "An error occurred while fetching roles: " + ex.Message);
+            }
+        }
+
+        public async Task<ServiceResult<AdminUserResponse>> CreateUserAsync(CreateUserRequest request)
+        {
+            try
+            {
+                var email = request.Email?.Trim() ?? string.Empty;
+                var password = request.Password ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(email))
+                    return ServiceResult<AdminUserResponse>.Fail("Email is required.");
+
+                if (!IsValidEmail(email))
+                    return ServiceResult<AdminUserResponse>.Fail("Email is invalid.");
+
+                if (password.Length < 6)
+                    return ServiceResult<AdminUserResponse>.Fail("Password must be at least 6 characters.");
+
+                if (password.Length > 100)
+                    return ServiceResult<AdminUserResponse>.Fail("Password is too long.");
+
+                var fullName = string.IsNullOrWhiteSpace(request.FullName) ? null : request.FullName.Trim();
+                if (fullName != null && fullName.Length > 150)
+                    return ServiceResult<AdminUserResponse>.Fail("Full name is too long.");
+
+                var phoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+                if (phoneNumber != null && phoneNumber.Length > 20)
+                    return ServiceResult<AdminUserResponse>.Fail("Phone number is too long.");
+
+                if (request.DateOfBirth.HasValue && request.DateOfBirth.Value.Date > DateTime.UtcNow.Date)
+                    return ServiceResult<AdminUserResponse>.Fail("Date of birth cannot be in the future.");
+
+                var actorType = UserActorTypes.Normalize(request.ActorType);
+                if (string.IsNullOrEmpty(actorType))
+                    return ServiceResult<AdminUserResponse>.Fail("ActorType must be one of: Researcher, Lecturer, Student.");
+
+                var existing = await _adminRepository.GetUserByEmailAsync(email);
+                if (existing != null)
+                    return ServiceResult<AdminUserResponse>.Fail("Email already exists.");
+
+                var user = new User
+                {
+                    Email        = email,
+                    PasswordHash = HashPassword(password),
+                    FullName     = fullName,
+                    DateOfBirth  = request.DateOfBirth?.Date,
+                    PhoneNumber  = phoneNumber,
+                    ActorType    = actorType,
+                    CreatedAt    = DateTime.UtcNow,
+                    IsActive     = true   // admin-created accounts are pre-activated
+                };
+
+                var created = await _adminRepository.CreateUserAsync(user, request.RoleId);
+
+                await _activityLogService.LogAsync(
+                    userId: null,
+                    action: "AdminCreatedUser",
+                    targetType: "User",
+                    targetId: created.UserId,
+                    details: $"Email={created.Email}, RoleId={request.RoleId}");
+
+                return ServiceResult<AdminUserResponse>.Ok(MapUser(created));
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<AdminUserResponse>.Fail(
+                    "An error occurred while creating the user: " + ex.Message);
+            }
+        }
+
+        private static bool IsValidEmail(string email)
+        {
+            try { return new MailAddress(email).Address == email; }
+            catch { return false; }
+        }
+
+        private static string HashPassword(string password)
+        {
+            var salt = new byte[16];
+            RandomNumberGenerator.Fill(salt);
+            using var pbkdf2 = new Rfc2898DeriveBytes(password, salt, 10000, HashAlgorithmName.SHA256);
+            var hash = pbkdf2.GetBytes(32);
+            return $"{Convert.ToBase64String(salt)}.{Convert.ToBase64String(hash)}";
         }
 
         public async Task<ServiceResult<AdminUserResponse>> GetUserByIdAsync(int userId)

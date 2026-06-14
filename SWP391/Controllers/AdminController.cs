@@ -21,13 +21,43 @@ namespace SWP391.Controllers
 
         // ── User Management ───────────────────────────────────────────────────────────
 
-        // GET: api/admin/users?page=1&pageSize=20
+        // GET: api/admin/users?page=1&pageSize=20&search=&roleId=
         [HttpGet("users")]
         public async Task<IActionResult> GetUsers(
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 20)
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? search = null,
+            [FromQuery] int? roleId = null)
         {
-            var result = await _adminService.GetUsersAsync(page, pageSize);
+            var result = await _adminService.GetUsersAsync(page, pageSize, search, roleId);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // POST: api/admin/users
+        [HttpPost("users")]
+        public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+        {
+            var result = await _adminService.CreateUserAsync(request);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("already exists") || result.Error.Contains("invalid") ||
+                    result.Error.Contains("required") || result.Error.Contains("too long") ||
+                    result.Error.Contains("future") || result.Error.Contains("ActorType"))
+                    return BadRequest(result);
+                return StatusCode(500, result);
+            }
+
+            return CreatedAtAction(nameof(GetUserById), new { id = result.Data!.UserId }, result.Data);
+        }
+
+        // GET: api/admin/roles
+        [HttpGet("roles")]
+        public async Task<IActionResult> GetRoles()
+        {
+            var result = await _adminService.GetRolesAsync();
             if (!result.Success)
                 return StatusCode(500, result);
 
