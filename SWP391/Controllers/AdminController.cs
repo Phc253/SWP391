@@ -179,6 +179,28 @@ namespace SWP391.Controllers
             return Ok(result.Data);
         }
 
+        // PATCH: api/admin/scheduler-config/enable
+        [HttpPatch("scheduler-config/enable")]
+        public async Task<IActionResult> EnableScheduler()
+        {
+            var result = await _adminService.SetSchedulerEnabledAsync(true);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // PATCH: api/admin/scheduler-config/disable
+        [HttpPatch("scheduler-config/disable")]
+        public async Task<IActionResult> DisableScheduler()
+        {
+            var result = await _adminService.SetSchedulerEnabledAsync(false);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
         // ── Role Assignment ───────────────────────────────────────────────────────────
 
         // POST: api/admin/users/{id}/roles

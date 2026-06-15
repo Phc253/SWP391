@@ -343,6 +343,14 @@ namespace SWP391.Service
             }
         }
 
+        public Task<ServiceResult<SchedulerConfigResponse>> SetSchedulerEnabledAsync(bool enabled)
+        {
+            return UpdateSchedulerConfigAsync(new SchedulerConfigRequest
+            {
+                Enabled = enabled
+            });
+        }
+
         // ── Role Assignment ───────────────────────────────────────────────────────────
 
         public async Task<ServiceResult<AdminUserResponse>> AssignRoleAsync(int userId, int roleId)

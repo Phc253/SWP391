@@ -508,7 +508,10 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    ALTER TABLE [Users] ADD [DateOfBirth] date NULL;
+
+    IF COL_LENGTH('Users', 'DateOfBirth') IS NULL
+        ALTER TABLE [Users] ADD [DateOfBirth] date NULL;
+
 END;
 GO
 
@@ -517,7 +520,10 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    ALTER TABLE [Users] ADD [PhoneNumber] nvarchar(20) NULL;
+
+    IF COL_LENGTH('Users', 'PhoneNumber') IS NULL
+        ALTER TABLE [Users] ADD [PhoneNumber] nvarchar(20) NULL;
+
 END;
 GO
 
@@ -526,16 +532,21 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE TABLE [EmailVerificationTokens] (
-        [EmailVerificationTokenId] bigint NOT NULL IDENTITY,
-        [UserId] int NOT NULL,
-        [TokenHash] nvarchar(255) NOT NULL,
-        [ExpiresAt] datetime2 NOT NULL,
-        [CreatedAt] datetime2 NOT NULL DEFAULT ((sysdatetime())),
-        [UsedAt] datetime2 NULL,
-        CONSTRAINT [PK_EmailVerificationTokens] PRIMARY KEY ([EmailVerificationTokenId]),
-        CONSTRAINT [FK_EmailVerificationTokens_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]) ON DELETE CASCADE
-    );
+
+    IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NULL
+    BEGIN
+        CREATE TABLE [EmailVerificationTokens] (
+            [EmailVerificationTokenId] bigint NOT NULL IDENTITY,
+            [UserId] int NOT NULL,
+            [TokenHash] nvarchar(255) NOT NULL,
+            [ExpiresAt] datetime2 NOT NULL,
+            [CreatedAt] datetime2 NOT NULL DEFAULT ((sysdatetime())),
+            [UsedAt] datetime2 NULL,
+            CONSTRAINT [PK_EmailVerificationTokens] PRIMARY KEY ([EmailVerificationTokenId]),
+            CONSTRAINT [FK_EmailVerificationTokens_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]) ON DELETE CASCADE
+        );
+    END
+
 END;
 GO
 
@@ -544,21 +555,26 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE TABLE [TrendSnapshots] (
-        [SnapshotId] bigint NOT NULL IDENTITY,
-        [KeywordId] int NULL,
-        [TopicId] int NULL,
-        [SnapshotDate] datetime2 NOT NULL DEFAULT ((sysdatetime())),
-        [TrendScore] float NOT NULL,
-        [GrowthRate] float NOT NULL,
-        [Momentum] float NOT NULL,
-        [CitationVelocity] float NOT NULL,
-        [PaperCount] int NOT NULL,
-        [RecentPaperCount] int NOT NULL,
-        CONSTRAINT [PK_TrendSnapshots] PRIMARY KEY ([SnapshotId]),
-        CONSTRAINT [FK_TrendSnapshots_Keywords_KeywordId] FOREIGN KEY ([KeywordId]) REFERENCES [Keywords] ([KeywordId]) ON DELETE SET NULL,
-        CONSTRAINT [FK_TrendSnapshots_ResearchTopics_TopicId] FOREIGN KEY ([TopicId]) REFERENCES [ResearchTopics] ([TopicId]) ON DELETE SET NULL
-    );
+
+    IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NULL
+    BEGIN
+        CREATE TABLE [TrendSnapshots] (
+            [SnapshotId] bigint NOT NULL IDENTITY,
+            [KeywordId] int NULL,
+            [TopicId] int NULL,
+            [SnapshotDate] datetime2 NOT NULL DEFAULT ((sysdatetime())),
+            [TrendScore] float NOT NULL,
+            [GrowthRate] float NOT NULL,
+            [Momentum] float NOT NULL,
+            [CitationVelocity] float NOT NULL,
+            [PaperCount] int NOT NULL,
+            [RecentPaperCount] int NOT NULL,
+            CONSTRAINT [PK_TrendSnapshots] PRIMARY KEY ([SnapshotId]),
+            CONSTRAINT [FK_TrendSnapshots_Keywords_KeywordId] FOREIGN KEY ([KeywordId]) REFERENCES [Keywords] ([KeywordId]) ON DELETE SET NULL,
+            CONSTRAINT [FK_TrendSnapshots_ResearchTopics_TopicId] FOREIGN KEY ([TopicId]) REFERENCES [ResearchTopics] ([TopicId]) ON DELETE SET NULL
+        );
+    END
+
 END;
 GO
 
@@ -567,7 +583,11 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE INDEX [IX_EmailVerificationTokens_TokenHash] ON [EmailVerificationTokens] ([TokenHash]);
+
+    IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_EmailVerificationTokens_TokenHash' AND object_id = OBJECT_ID(N'[EmailVerificationTokens]'))
+        CREATE INDEX [IX_EmailVerificationTokens_TokenHash] ON [EmailVerificationTokens] ([TokenHash]);
+
 END;
 GO
 
@@ -576,7 +596,11 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE INDEX [IX_EmailVerificationTokens_User_UsedAt] ON [EmailVerificationTokens] ([UserId], [UsedAt]);
+
+    IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_EmailVerificationTokens_User_UsedAt' AND object_id = OBJECT_ID(N'[EmailVerificationTokens]'))
+        CREATE INDEX [IX_EmailVerificationTokens_User_UsedAt] ON [EmailVerificationTokens] ([UserId], [UsedAt]);
+
 END;
 GO
 
@@ -585,7 +609,11 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE INDEX [IX_TrendSnapshots_Date] ON [TrendSnapshots] ([SnapshotDate]);
+
+    IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+        CREATE INDEX [IX_TrendSnapshots_Date] ON [TrendSnapshots] ([SnapshotDate]);
+
 END;
 GO
 
@@ -594,7 +622,11 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE INDEX [IX_TrendSnapshots_Keyword_Date] ON [TrendSnapshots] ([KeywordId], [SnapshotDate]);
+
+    IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Keyword_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+        CREATE INDEX [IX_TrendSnapshots_Keyword_Date] ON [TrendSnapshots] ([KeywordId], [SnapshotDate]);
+
 END;
 GO
 
@@ -603,7 +635,11 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260604074436_AddTrendSnapshots'
 )
 BEGIN
-    CREATE INDEX [IX_TrendSnapshots_Topic_Date] ON [TrendSnapshots] ([TopicId], [SnapshotDate]);
+
+    IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Topic_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+        CREATE INDEX [IX_TrendSnapshots_Topic_Date] ON [TrendSnapshots] ([TopicId], [SnapshotDate]);
+
 END;
 GO
 
@@ -628,7 +664,10 @@ IF NOT EXISTS (
     WHERE [MigrationId] = N'20260605122510_AddUserActorType'
 )
 BEGIN
-    ALTER TABLE [Users] ADD [ActorType] nvarchar(50) NOT NULL DEFAULT N'Student';
+
+    IF COL_LENGTH('Users', 'ActorType') IS NULL
+        ALTER TABLE [Users] ADD [ActorType] nvarchar(50) NOT NULL CONSTRAINT [DF_Users_ActorType] DEFAULT N'Student';
+
 END;
 GO
 
@@ -639,6 +678,701 @@ IF NOT EXISTS (
 BEGIN
     INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
     VALUES (N'20260605122510_AddUserActorType', N'8.0.10');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260611000247_AddActivityLog'
+)
+BEGIN
+
+    IF OBJECT_ID(N'[ActivityLogs]', N'U') IS NULL
+    BEGIN
+        CREATE TABLE [ActivityLogs] (
+            [ActivityLogId] bigint NOT NULL IDENTITY,
+            [UserId] int NULL,
+            [Action] nvarchar(100) NOT NULL,
+            [TargetType] nvarchar(50) NULL,
+            [TargetId] bigint NULL,
+            [Details] nvarchar(max) NULL,
+            [IpAddress] nvarchar(45) NULL,
+            [CreatedAt] datetime2 NOT NULL DEFAULT ((sysdatetime())),
+            CONSTRAINT [PK_ActivityLogs] PRIMARY KEY ([ActivityLogId]),
+            CONSTRAINT [FK_ActivityLogs_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]) ON DELETE SET NULL
+        );
+    END
+
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260611000247_AddActivityLog'
+)
+BEGIN
+
+    IF OBJECT_ID(N'[ActivityLogs]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ActivityLogs_CreatedAt' AND object_id = OBJECT_ID(N'[ActivityLogs]'))
+        CREATE INDEX [IX_ActivityLogs_CreatedAt] ON [ActivityLogs] ([CreatedAt]);
+
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260611000247_AddActivityLog'
+)
+BEGIN
+
+    IF OBJECT_ID(N'[ActivityLogs]', N'U') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ActivityLogs_UserId' AND object_id = OBJECT_ID(N'[ActivityLogs]'))
+        CREATE INDEX [IX_ActivityLogs_UserId] ON [ActivityLogs] ([UserId]);
+
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260611000247_AddActivityLog'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260611000247_AddActivityLog', N'8.0.10');
+END;
+GO
+
+COMMIT;
+GO
+
+BEGIN TRANSACTION;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Bookmarks] DROP CONSTRAINT [FK__Bookmarks__UserI__4F7CD00D];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Follows] DROP CONSTRAINT [FK__Follows__UserId__534D60F1];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Notifications] DROP CONSTRAINT [FK__Notificat__UserI__5812160E];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] DROP CONSTRAINT [FK__PaperAuth__Autho__3C69FB99];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] DROP CONSTRAINT [FK__PaperAuth__Paper__3B75D760];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DROP INDEX [UQ__Research__6C795E8C662E12F0] ON [ResearchTopics];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] DROP CONSTRAINT [PK_PaperAuthors];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DROP INDEX [UQ__Keywords__219EE3D704701796] ON [Keywords];
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var0 sysname;
+    SELECT @var0 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[SyncJobs]') AND [c].[name] = N'SourceId');
+    IF @var0 IS NOT NULL EXEC(N'ALTER TABLE [SyncJobs] DROP CONSTRAINT [' + @var0 + '];');
+    ALTER TABLE [SyncJobs] ALTER COLUMN [SourceId] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var1 sysname;
+    SELECT @var1 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[ResearchTopics]') AND [c].[name] = N'TopicName');
+    IF @var1 IS NOT NULL EXEC(N'ALTER TABLE [ResearchTopics] DROP CONSTRAINT [' + @var1 + '];');
+    ALTER TABLE [ResearchTopics] ALTER COLUMN [TopicName] nvarchar(150) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var2 sysname;
+    SELECT @var2 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[PublicationTrends]') AND [c].[name] = N'TrendYear');
+    IF @var2 IS NOT NULL EXEC(N'ALTER TABLE [PublicationTrends] DROP CONSTRAINT [' + @var2 + '];');
+    ALTER TABLE [PublicationTrends] ALTER COLUMN [TrendYear] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var3 sysname;
+    SELECT @var3 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[PublicationTrends]') AND [c].[name] = N'PaperCount');
+    IF @var3 IS NOT NULL EXEC(N'ALTER TABLE [PublicationTrends] DROP CONSTRAINT [' + @var3 + '];');
+    ALTER TABLE [PublicationTrends] ALTER COLUMN [PaperCount] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var4 sysname;
+    SELECT @var4 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Papers]') AND [c].[name] = N'Title');
+    IF @var4 IS NOT NULL EXEC(N'ALTER TABLE [Papers] DROP CONSTRAINT [' + @var4 + '];');
+    ALTER TABLE [Papers] ALTER COLUMN [Title] nvarchar(max) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD [Affiliation] nvarchar(300) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD [AuthorOrder] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD [IsCorresponding] bit NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var5 sysname;
+    SELECT @var5 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Notifications]') AND [c].[name] = N'UserId');
+    IF @var5 IS NOT NULL EXEC(N'ALTER TABLE [Notifications] DROP CONSTRAINT [' + @var5 + '];');
+    ALTER TABLE [Notifications] ALTER COLUMN [UserId] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var6 sysname;
+    SELECT @var6 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Notifications]') AND [c].[name] = N'Message');
+    IF @var6 IS NOT NULL EXEC(N'ALTER TABLE [Notifications] DROP CONSTRAINT [' + @var6 + '];');
+    ALTER TABLE [Notifications] ALTER COLUMN [Message] nvarchar(max) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var7 sysname;
+    SELECT @var7 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Keywords]') AND [c].[name] = N'KeywordText');
+    IF @var7 IS NOT NULL EXEC(N'ALTER TABLE [Keywords] DROP CONSTRAINT [' + @var7 + '];');
+    ALTER TABLE [Keywords] ALTER COLUMN [KeywordText] nvarchar(150) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var8 sysname;
+    SELECT @var8 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Journals]') AND [c].[name] = N'JournalName');
+    IF @var8 IS NOT NULL EXEC(N'ALTER TABLE [Journals] DROP CONSTRAINT [' + @var8 + '];');
+    ALTER TABLE [Journals] ALTER COLUMN [JournalName] nvarchar(300) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Journals] ADD [ContactEmail] nvarchar(255) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Journals] ADD [ImpactFactor] float NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Journals] ADD [Website] nvarchar(500) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var9 sysname;
+    SELECT @var9 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Follows]') AND [c].[name] = N'UserId');
+    IF @var9 IS NOT NULL EXEC(N'ALTER TABLE [Follows] DROP CONSTRAINT [' + @var9 + '];');
+    ALTER TABLE [Follows] ALTER COLUMN [UserId] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var10 sysname;
+    SELECT @var10 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Follows]') AND [c].[name] = N'TargetType');
+    IF @var10 IS NOT NULL EXEC(N'ALTER TABLE [Follows] DROP CONSTRAINT [' + @var10 + '];');
+    ALTER TABLE [Follows] ALTER COLUMN [TargetType] nvarchar(50) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var11 sysname;
+    SELECT @var11 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Follows]') AND [c].[name] = N'TargetId');
+    IF @var11 IS NOT NULL EXEC(N'ALTER TABLE [Follows] DROP CONSTRAINT [' + @var11 + '];');
+    ALTER TABLE [Follows] ALTER COLUMN [TargetId] bigint NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var12 sysname;
+    SELECT @var12 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Bookmarks]') AND [c].[name] = N'UserId');
+    IF @var12 IS NOT NULL EXEC(N'ALTER TABLE [Bookmarks] DROP CONSTRAINT [' + @var12 + '];');
+    ALTER TABLE [Bookmarks] ALTER COLUMN [UserId] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var13 sysname;
+    SELECT @var13 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Bookmarks]') AND [c].[name] = N'TargetType');
+    IF @var13 IS NOT NULL EXEC(N'ALTER TABLE [Bookmarks] DROP CONSTRAINT [' + @var13 + '];');
+    ALTER TABLE [Bookmarks] ALTER COLUMN [TargetType] nvarchar(50) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var14 sysname;
+    SELECT @var14 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Bookmarks]') AND [c].[name] = N'TargetId');
+    IF @var14 IS NOT NULL EXEC(N'ALTER TABLE [Bookmarks] DROP CONSTRAINT [' + @var14 + '];');
+    ALTER TABLE [Bookmarks] ALTER COLUMN [TargetId] bigint NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var15 sysname;
+    SELECT @var15 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[Authors]') AND [c].[name] = N'AuthorName');
+    IF @var15 IS NOT NULL EXEC(N'ALTER TABLE [Authors] DROP CONSTRAINT [' + @var15 + '];');
+    ALTER TABLE [Authors] ALTER COLUMN [AuthorName] nvarchar(200) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Authors] ADD [ResearchArea] nvarchar(300) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Authors] ADD [TotalPublications] int NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    DECLARE @var16 sysname;
+    SELECT @var16 = [d].[name]
+    FROM [sys].[default_constraints] [d]
+    INNER JOIN [sys].[columns] [c] ON [d].[parent_column_id] = [c].[column_id] AND [d].[parent_object_id] = [c].[object_id]
+    WHERE ([d].[parent_object_id] = OBJECT_ID(N'[ApiDataSources]') AND [c].[name] = N'SourceName');
+    IF @var16 IS NOT NULL EXEC(N'ALTER TABLE [ApiDataSources] DROP CONSTRAINT [' + @var16 + '];');
+    ALTER TABLE [ApiDataSources] ALTER COLUMN [SourceName] nvarchar(100) NULL;
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD CONSTRAINT [PK__PaperAut__FC8BBDC843D72F9A] PRIMARY KEY ([PaperId], [AuthorId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE TABLE [DashboardReports] (
+        [ReportId] bigint NOT NULL IDENTITY,
+        [UserId] int NULL,
+        [ReportName] nvarchar(200) NULL,
+        [ReportType] nvarchar(50) NULL,
+        [FilterConfig] nvarchar(max) NULL,
+        [GeneratedAt] datetime2 NULL,
+        CONSTRAINT [PK__Dashboar__D5BD48054FB0E0D0] PRIMARY KEY ([ReportId]),
+        CONSTRAINT [FK__Dashboard__UserI__5070F446] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE TABLE [PaperCitations] (
+        [CitationId] bigint NOT NULL IDENTITY,
+        [CitingPaperId] bigint NOT NULL,
+        [CitedPaperId] bigint NOT NULL,
+        [CreatedAt] datetime2 NULL,
+        CONSTRAINT [PK__PaperCit__EAD2ADFB7C803DC4] PRIMARY KEY ([CitationId]),
+        CONSTRAINT [FK__PaperCita__Cited__628FA481] FOREIGN KEY ([CitedPaperId]) REFERENCES [Papers] ([PaperId]),
+        CONSTRAINT [FK__PaperCita__Citin__619B8048] FOREIGN KEY ([CitingPaperId]) REFERENCES [Papers] ([PaperId])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE TABLE [ResearchGroups] (
+        [GroupId] int NOT NULL IDENTITY,
+        [GroupName] nvarchar(200) NOT NULL,
+        [OwnerId] int NOT NULL,
+        [Description] nvarchar(max) NULL,
+        [CreatedAt] datetime2 NULL,
+        CONSTRAINT [PK__Research__149AF36A1F2F87A7] PRIMARY KEY ([GroupId]),
+        CONSTRAINT [FK__ResearchG__Owner__656C112C] FOREIGN KEY ([OwnerId]) REFERENCES [Users] ([UserId])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE TABLE [UserPreferences] (
+        [PreferenceId] bigint NOT NULL IDENTITY,
+        [UserId] int NULL,
+        [PreferredField] nvarchar(150) NULL,
+        [PreferredYearRange] nvarchar(50) NULL,
+        [NotificationFrequency] nvarchar(50) NULL,
+        [CreatedAt] datetime2 NULL,
+        CONSTRAINT [PK__UserPref__E228496F80308D5A] PRIMARY KEY ([PreferenceId]),
+        CONSTRAINT [FK__UserPrefe__UserI__2E1BDC42] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE TABLE [GroupMembers] (
+        [GroupId] int NOT NULL,
+        [UserId] int NOT NULL,
+        [RoleInGroup] nvarchar(50) NULL,
+        [JoinedAt] datetime2 NULL,
+        CONSTRAINT [PK__GroupMem__C5E27FAE44EE6647] PRIMARY KEY ([GroupId], [UserId]),
+        CONSTRAINT [FK__GroupMemb__Group__68487DD7] FOREIGN KEY ([GroupId]) REFERENCES [ResearchGroups] ([GroupId]),
+        CONSTRAINT [FK__GroupMemb__UserI__693CA210] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId])
+    );
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UQ__Research__6C795E8C662E12F0] ON [ResearchTopics] ([TopicName]) WHERE [TopicName] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    EXEC(N'CREATE UNIQUE INDEX [UQ__Keywords__219EE3D704701796] ON [Keywords] ([KeywordText]) WHERE [KeywordText] IS NOT NULL');
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_DashboardReports_UserId] ON [DashboardReports] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_GroupMembers_UserId] ON [GroupMembers] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_PaperCitations_CitedPaperId] ON [PaperCitations] ([CitedPaperId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_PaperCitations_CitingPaperId] ON [PaperCitations] ([CitingPaperId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_ResearchGroups_OwnerId] ON [ResearchGroups] ([OwnerId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    CREATE INDEX [IX_UserPreferences_UserId] ON [UserPreferences] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Bookmarks] ADD CONSTRAINT [FK__Bookmarks__UserI__4F7CD00D] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Follows] ADD CONSTRAINT [FK__Follows__UserId__534D60F1] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [Notifications] ADD CONSTRAINT [FK__Notificat__UserI__5812160E] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD CONSTRAINT [FK__PaperAuth__Autho__3C69FB99] FOREIGN KEY ([AuthorId]) REFERENCES [Authors] ([AuthorId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    ALTER TABLE [PaperAuthors] ADD CONSTRAINT [FK__PaperAuth__Paper__3B75D760] FOREIGN KEY ([PaperId]) REFERENCES [Papers] ([PaperId]);
+END;
+GO
+
+IF NOT EXISTS (
+    SELECT * FROM [__EFMigrationsHistory]
+    WHERE [MigrationId] = N'20260614201637_AddDashboardReports'
+)
+BEGIN
+    INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion])
+    VALUES (N'20260614201637_AddDashboardReports', N'8.0.10');
 END;
 GO
 
