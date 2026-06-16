@@ -21,15 +21,19 @@ namespace SWP391
         {
             var builder = WebApplication.CreateBuilder(args);
             // CORS for the Frontend
-            builder.Services.AddCors(options => 
+            builder.Services.AddCors(options =>
             {
-                options.AddDefaultPolicy(policy =>
-                {
-                    policy.AllowAnyOrigin()
-                          .AllowAnyMethod()
-                          .AllowAnyHeader();
-                });
+                options.AddPolicy("AllowReact",policy =>
+                    {
+                        policy
+                            .WithOrigins("http://localhost:5173",
+                                         "http://127.0.0.1:5173")
+                            .AllowAnyHeader()
+                            .AllowAnyMethod();
+                    });
             });
+
+            
 
             // Add services to the container.
             builder.Services.AddControllers();
@@ -149,7 +153,7 @@ namespace SWP391
             }
 
             app.UseHttpsRedirection();
-            app.UseCors(); 
+            app.UseCors("AllowReact"); 
             app.UseAuthentication();
             app.UseAuthorization();
 
