@@ -147,7 +147,7 @@ namespace SWP391.Service
 
             var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
             if (existingPaper != null)
-            {
+            {   
                 existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
                 await _dbContext.SaveChangesAsync();
                 _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);

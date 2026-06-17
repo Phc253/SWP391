@@ -20,7 +20,6 @@ namespace SWP391
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            // CORS for the Frontend
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowReact",policy =>
@@ -32,13 +31,7 @@ namespace SWP391
                             .AllowAnyMethod();
                     });
             });
-
-            
-
-            // Add services to the container.
             builder.Services.AddControllers();
-
-            // Set up JWT Authentication ====================
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -60,22 +53,14 @@ namespace SWP391
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"] ?? "SuperSecretKeyForJWTWhichMustBeMoreThan16Chars!"))
                 };
             });
-            // ===============================================
-
-            // === [TH�M M?I] C?u h�nh Policy-Based Authorization ===
             builder.Services.AddAuthorization(options =>
             {
-                // Ch�nh s�ch: Ch? c� Administrator m?i ???c ph�p
                 options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrator"));
                 
-                // Ch�nh s�ch: Cho ph�p Administrator HO?C Researcher (Nh� nghi�n c?u)
                 options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
-                // Ch�nh s�ch: Y�u c?u l� Member tr? l�n
                 options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
             });
-            // ===============================================
-
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
                 
@@ -107,13 +92,9 @@ namespace SWP391
             builder.Services.AddScoped<ActivityLogService>();
             builder.Services.AddHostedService<TrendComputeBackgroundService>();
             builder.Services.Configure<DataSyncSchedulerOptions>(
-                builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
+                    builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
             builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
-
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
-
-            // Swagger configuration to include JWT authentication in the UI
             builder.Services.AddSwaggerGen(c =>
             {
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -139,26 +120,18 @@ namespace SWP391
                     }
                 });
             });
-            // ===========================================================
-
             var app = builder.Build();
-            
-            // Configure the HTTP request pipeline.
             app.UseMiddleware<ExceptionMiddleware>();
-
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
             app.UseHttpsRedirection();
             app.UseCors("AllowReact"); 
             app.UseAuthentication();
             app.UseAuthorization();
-
             app.MapControllers();
-
             app.Run();
         }
     }
