@@ -6,5 +6,6 @@ namespace SWP391.Models.Trend
         public int KeywordRecords { get; set; }
         public int TopicRecords { get; set; }
         public int SnapshotsWritten { get; set; }
+        public List<ComputeStageResponse> Stages { get; set; } = new();
     }
 }
