@@ -70,5 +70,29 @@ namespace SWP391.Controllers
             var bytes = System.Text.Encoding.UTF8.GetBytes(result.Data!);
             return File(bytes, "text/csv", $"keyword_stats_{DateTime.UtcNow:yyyyMMdd}.csv");
         }
+
+        // GET: api/report/export/papers-pdf?year=2023&keywordText=AI
+        [HttpGet("export/papers-pdf")]
+        [Authorize(Policy = "IsMember")]
+        public async Task<IActionResult> ExportPapersPdf(
+            [FromQuery] int? year = null,
+            [FromQuery] string? keywordText = null)
+        {
+            var result = await _reportService.ExportPapersReportPdfAsync(year, keywordText);
+            if (!result.Success)
+                return BadRequest(new { error = result.Error });
+            return File(result.Data!, "application/pdf", $"papers_report_{DateTime.UtcNow:yyyyMMdd}.pdf");
+        }
+
+        // GET: api/report/export/keyword-stats-pdf
+        [HttpGet("export/keyword-stats-pdf")]
+        [Authorize(Policy = "IsMember")]
+        public async Task<IActionResult> ExportKeywordStatsPdf()
+        {
+            var result = await _reportService.ExportKeywordStatsPdfAsync();
+            if (!result.Success)
+                return StatusCode(500, new { error = result.Error });
+            return File(result.Data!, "application/pdf", $"keyword_stats_{DateTime.UtcNow:yyyyMMdd}.pdf");
+        }
     }
 }
