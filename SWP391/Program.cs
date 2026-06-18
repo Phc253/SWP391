@@ -52,6 +52,34 @@ namespace SWP391
                     ValidAudience = builder.Configuration["JWT:ValidAudience"],
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"] ?? "SuperSecretKeyForJWTWhichMustBeMoreThan16Chars!"))
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        const string bearerPrefix = "Bearer ";
+                        var authorizationHeader = context.Request.Headers["Authorization"].ToString();
+
+                        if (!authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+
+                        var token = authorizationHeader[bearerPrefix.Length..].Trim();
+                        if (string.IsNullOrWhiteSpace(token))
+                        {
+                            return;
+                        }
+
+                        var tokenHash = AccountService.HashToken(token);
+                        var accountRepository = context.HttpContext.RequestServices.GetRequiredService<AccountRepository>();
+                        var isRevoked = await accountRepository.IsTokenRevokedAsync(tokenHash);
+
+                        if (isRevoked)
+                        {
+                            context.Fail("Token has been revoked.");
+                        }
+                    }
+                };
             });
             builder.Services.AddAuthorization(options =>
             {

@@ -37,6 +37,8 @@ public partial class User
 
     public virtual ICollection<ResearchGroup> ResearchGroups { get; set; } = new List<ResearchGroup>();
 
+    public virtual ICollection<RevokedToken> RevokedTokens { get; set; } = new List<RevokedToken>();
+
     public virtual ICollection<UserPreference> UserPreferences { get; set; } = new List<UserPreference>();
 
     public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
