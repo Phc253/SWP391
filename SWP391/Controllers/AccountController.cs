@@ -49,6 +49,42 @@ namespace SWP391.Controllers
             return Ok(result.Data);
         }
 
+        [HttpPost("logout")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<IActionResult> Logout()
+        {
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { message = "Invalid token." });
+            }
+
+            var token = GetBearerToken(Request);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return Unauthorized(new { message = "Bearer token is required." });
+            }
+
+            var logoutResult = await _accountServices.LogoutAsync(token, userId);
+            if (!logoutResult.Success)
+            {
+                return BadRequest(new { message = logoutResult.Error });
+            }
+
+            var email = User.FindFirstValue(ClaimTypes.Email);
+            var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            await _activityLogService.LogAsync(
+                userId: userId,
+                action: "Logout",
+                details: string.IsNullOrWhiteSpace(email)
+                    ? "User logged out"
+                    : $"User {email} logged out",
+                ipAddress: ip);
+
+            return Ok(new { message = logoutResult.Data });
+        }
+
         [HttpGet("verify-email")]
         public async Task<IActionResult> VerifyEmail([FromQuery] string token)
         {
@@ -100,6 +136,19 @@ namespace SWP391.Controllers
         public IActionResult PublishArticle()
         {
             return Ok(new { Message = "Bài báo đã đưa vào hàng chờ kiểm duyệt." });
+        }
+
+        private static string? GetBearerToken(HttpRequest request)
+        {
+            const string bearerPrefix = "Bearer ";
+            var authorizationHeader = request.Headers["Authorization"].ToString();
+
+            if (!authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return authorizationHeader[bearerPrefix.Length..].Trim();
         }
     }
 }

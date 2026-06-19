@@ -18,7 +18,7 @@ namespace SWP391.Controllers
 
         // Manual admin trigger for the OpenAlex data acquisition pipeline.
         // Creates a SyncJob, fetches metadata, stores normalized records, then refreshes trend data.
-        [HttpPost("sync-openalex")]
+        [HttpPost("sync-openalex")] 
         public async Task<IActionResult> SyncOpenAlex(string keyword = "Computer Science", int maxResults = 20)
         {
             var result = await _dataSyncService.SyncOpenAlexAsync   (keyword, maxResults);

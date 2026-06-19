@@ -50,6 +50,8 @@ public partial class ScientificTrendDbContext : DbContext
 
     public virtual DbSet<ResearchTopic> ResearchTopics { get; set; }
 
+    public virtual DbSet<RevokedToken> RevokedTokens { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<SyncJob> SyncJobs { get; set; }
@@ -345,6 +347,22 @@ public partial class ScientificTrendDbContext : DbContext
             entity.HasIndex(e => e.TopicName, "UQ__Research__6C795E8C662E12F0").IsUnique();
 
             entity.Property(e => e.TopicName).HasMaxLength(150);
+        });
+
+        modelBuilder.Entity<RevokedToken>(entity =>
+        {
+            entity.HasKey(e => e.RevokedTokenId);
+
+            entity.HasIndex(e => e.TokenHash, "IX_RevokedTokens_TokenHash").IsUnique();
+            entity.HasIndex(e => e.ExpiresAt, "IX_RevokedTokens_ExpiresAt");
+            entity.HasIndex(e => e.UserId, "IX_RevokedTokens_UserId");
+
+            entity.Property(e => e.TokenHash).HasMaxLength(255);
+            entity.Property(e => e.RevokedAt).HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.User).WithMany(p => p.RevokedTokens)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Role>(entity =>
