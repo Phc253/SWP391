@@ -3,6 +3,7 @@ using SWP391.Entities;
 using SWP391.Middlewares;
 using SWP391.Repositories;
 using SWP391.Service;
+using SWP391.Service.Reports.Pdf;
 using SWP391.Models.Dashboard;
 using SWP391.Models.Report;
 using SWP391.Models.Admin;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 
 namespace SWP391
 {
@@ -19,6 +21,8 @@ namespace SWP391
     {
         public static void Main(string[] args)
         {
+            QuestPDF.Settings.License = LicenseType.Community;
+
             var builder = WebApplication.CreateBuilder(args);
             builder.Services.AddCors(options =>
             {
@@ -104,6 +108,7 @@ namespace SWP391
             builder.Services.AddScoped<DashboardRepository>();
             builder.Services.AddScoped<DashboardReportRepository>();
             builder.Services.AddScoped<DashboardService>();
+            builder.Services.AddScoped<IReportPdfRenderer, QuestPdfReportRenderer>();
             builder.Services.AddScoped<ReportService>();
             builder.Services.AddScoped<NotificationRepository>();
             builder.Services.AddScoped<NotificationService>();

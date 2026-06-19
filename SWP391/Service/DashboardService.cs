@@ -33,6 +33,20 @@ namespace SWP391.Service
             }
         }
 
+        public async Task<ServiceResult<UserDashboardResponse>> GetUserSummaryAsync(int userId)
+        {
+            try
+            {
+                var data = await _dashboardRepository.GetUserSummaryAsync(userId);
+                return ServiceResult<UserDashboardResponse>.Ok(data);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<UserDashboardResponse>.Fail(
+                    "An error occurred while loading your dashboard: " + ex.Message);
+            }
+        }
+
         // ── DashboardReport CRUD ──────────────────────────────────────────────────────
 
         public async Task<ServiceResult<DashboardReportResponse>> SaveReportAsync(
