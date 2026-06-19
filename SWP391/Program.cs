@@ -3,6 +3,7 @@ using SWP391.Entities;
 using SWP391.Middlewares;
 using SWP391.Repositories;
 using SWP391.Service;
+using SWP391.Service.Reports.Pdf;
 using SWP391.Models.Dashboard;
 using SWP391.Models.Report;
 using SWP391.Models.Admin;
@@ -12,6 +13,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 
 namespace SWP391
 {
@@ -19,22 +21,21 @@ namespace SWP391
     {
         public static void Main(string[] args)
         {
+            QuestPDF.Settings.License = LicenseType.Community;
+
             var builder = WebApplication.CreateBuilder(args);
-            // CORS for the Frontend
-            builder.Services.AddCors(options => 
+            builder.Services.AddCors(options =>
             {
-                options.AddDefaultPolicy(policy =>
-                {
-                    policy.AllowAnyOrigin()
-                          .AllowAnyMethod()
-                          .AllowAnyHeader();
-                });
+                options.AddPolicy("AllowReact",policy =>
+                    {
+                        policy
+                            .WithOrigins("http://localhost:5173",
+                                         "http://127.0.0.1:5173")
+                            .AllowAnyHeader()
+                            .AllowAnyMethod();
+                    });
             });
-
-            // Add services to the container.
             builder.Services.AddControllers();
-
-            // Set up JWT Authentication ====================
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -55,23 +56,43 @@ namespace SWP391
                     ValidAudience = builder.Configuration["JWT:ValidAudience"],
                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"] ?? "SuperSecretKeyForJWTWhichMustBeMoreThan16Chars!"))
                 };
-            });
-            // ===============================================
+                options.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = async context =>
+                    {
+                        const string bearerPrefix = "Bearer ";
+                        var authorizationHeader = context.Request.Headers["Authorization"].ToString();
 
-            // === [TH�M M?I] C?u h�nh Policy-Based Authorization ===
+                        if (!authorizationHeader.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+
+                        var token = authorizationHeader[bearerPrefix.Length..].Trim();
+                        if (string.IsNullOrWhiteSpace(token))
+                        {
+                            return;
+                        }
+
+                        var tokenHash = AccountService.HashToken(token);
+                        var accountRepository = context.HttpContext.RequestServices.GetRequiredService<AccountRepository>();
+                        var isRevoked = await accountRepository.IsTokenRevokedAsync(tokenHash);
+
+                        if (isRevoked)
+                        {
+                            context.Fail("Token has been revoked.");
+                        }
+                    }
+                };
+            });
             builder.Services.AddAuthorization(options =>
             {
-                // Ch�nh s�ch: Ch? c� Administrator m?i ???c ph�p
                 options.AddPolicy("AdminOnly", policy => policy.RequireRole("Administrator"));
                 
-                // Ch�nh s�ch: Cho ph�p Administrator HO?C Researcher (Nh� nghi�n c?u)
                 options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
-                // Ch�nh s�ch: Y�u c?u l� Member tr? l�n
                 options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
             });
-            // ===============================================
-
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
                 
@@ -85,10 +106,13 @@ namespace SWP391
             builder.Services.AddScoped<AcademicDataIntegrationService>();
             builder.Services.AddScoped<DataSyncService>();
             builder.Services.AddScoped<DashboardRepository>();
+            builder.Services.AddScoped<DashboardReportRepository>();
             builder.Services.AddScoped<DashboardService>();
+            builder.Services.AddScoped<IReportPdfRenderer, QuestPdfReportRenderer>();
             builder.Services.AddScoped<ReportService>();
             builder.Services.AddScoped<NotificationRepository>();
             builder.Services.AddScoped<NotificationService>();
+            builder.Services.AddScoped<NotificationTriggerService>();
             builder.Services.AddScoped<AdminRepository>();
             builder.Services.AddScoped<AdminService>();
             builder.Services.AddScoped<BookmarkRepository>();
@@ -97,22 +121,13 @@ namespace SWP391
             builder.Services.AddScoped<AuthorService>();
             builder.Services.AddScoped<FollowRepository>();
             builder.Services.AddScoped<FollowService>();
+            builder.Services.AddScoped<ActivityLogRepository>();
+            builder.Services.AddScoped<ActivityLogService>();
+            builder.Services.AddHostedService<TrendComputeBackgroundService>();
             builder.Services.Configure<DataSyncSchedulerOptions>(
-                builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
-
-            var dataSyncSchedulerOptions = builder.Configuration
-                .GetSection(DataSyncSchedulerOptions.SectionName)
-                .Get<DataSyncSchedulerOptions>() ?? new DataSyncSchedulerOptions();
-
-            if (dataSyncSchedulerOptions.Enabled)
-            {
-                builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
-            }
-
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+                    builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));
+            builder.Services.AddHostedService<DataSyncSchedulerHostedService>();
             builder.Services.AddEndpointsApiExplorer();
-
-            // Swagger configuration to include JWT authentication in the UI
             builder.Services.AddSwaggerGen(c =>
             {
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -138,26 +153,18 @@ namespace SWP391
                     }
                 });
             });
-            // ===========================================================
-
             var app = builder.Build();
-            
-            // Configure the HTTP request pipeline.
             app.UseMiddleware<ExceptionMiddleware>();
-
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
             app.UseHttpsRedirection();
-            app.UseCors(); 
+            app.UseCors("AllowReact"); 
             app.UseAuthentication();
             app.UseAuthorization();
-
             app.MapControllers();
-
             app.Run();
         }
     }

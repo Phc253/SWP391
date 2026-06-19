@@ -22,21 +22,6 @@ namespace SWP391.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("PaperAuthor", b =>
-                {
-                    b.Property<long>("PaperId")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("AuthorId")
-                        .HasColumnType("int");
-
-                    b.HasKey("PaperId", "AuthorId");
-
-                    b.HasIndex("AuthorId");
-
-                    b.ToTable("PaperAuthors", (string)null);
-                });
-
             modelBuilder.Entity("PaperKeyword", b =>
                 {
                     b.Property<long>("PaperId")
@@ -47,9 +32,53 @@ namespace SWP391.Migrations
 
                     b.HasKey("PaperId", "KeywordId");
 
-                    b.HasIndex("KeywordId");
+                    b.HasIndex(new[] { "KeywordId" }, "IX_PaperKeywords_KeywordId");
 
                     b.ToTable("PaperKeywords", (string)null);
+                });
+
+            modelBuilder.Entity("SWP391.Entities.ActivityLog", b =>
+                {
+                    b.Property<long>("ActivityLogId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ActivityLogId"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(sysdatetime())");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<long?>("TargetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ActivityLogId");
+
+                    b.HasIndex(new[] { "CreatedAt" }, "IX_ActivityLogs_CreatedAt");
+
+                    b.HasIndex(new[] { "UserId" }, "IX_ActivityLogs_UserId");
+
+                    b.ToTable("ActivityLogs");
                 });
 
             modelBuilder.Entity("SWP391.Entities.ApiDataSource", b =>
@@ -70,7 +99,6 @@ namespace SWP391.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<string>("SourceName")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
@@ -89,9 +117,15 @@ namespace SWP391.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("AuthorId"));
 
                     b.Property<string>("AuthorName")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ResearchArea")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("TotalPublications")
+                        .HasColumnType("int");
 
                     b.HasKey("AuthorId")
                         .HasName("PK__Authors__70DAFC347F30D68E");
@@ -112,15 +146,14 @@ namespace SWP391.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(sysdatetime())");
 
-                    b.Property<long>("TargetId")
+                    b.Property<long?>("TargetId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("TargetType")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("UserId")
+                    b.Property<int?>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("BookmarkId")
@@ -129,6 +162,39 @@ namespace SWP391.Migrations
                     b.HasIndex(new[] { "UserId" }, "IX_Bookmarks_User");
 
                     b.ToTable("Bookmarks");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.DashboardReport", b =>
+                {
+                    b.Property<long>("ReportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ReportId"));
+
+                    b.Property<string>("FilterConfig")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("GeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ReportType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("ReportId")
+                        .HasName("PK__Dashboar__D5BD48054FB0E0D0");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("DashboardReports");
                 });
 
             modelBuilder.Entity("SWP391.Entities.EmailVerificationToken", b =>
@@ -180,15 +246,14 @@ namespace SWP391.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(sysdatetime())");
 
-                    b.Property<long>("TargetId")
+                    b.Property<long?>("TargetId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("TargetType")
-                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("UserId")
+                    b.Property<int?>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("FollowId")
@@ -199,6 +264,29 @@ namespace SWP391.Migrations
                     b.ToTable("Follows");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.GroupMember", b =>
+                {
+                    b.Property<int>("GroupId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RoleInGroup")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("GroupId", "UserId")
+                        .HasName("PK__GroupMem__C5E27FAE44EE6647");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("GroupMembers");
+                });
+
             modelBuilder.Entity("SWP391.Entities.Journal", b =>
                 {
                     b.Property<int>("JournalId")
@@ -207,19 +295,29 @@ namespace SWP391.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("JournalId"));
 
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<double?>("ImpactFactor")
+                        .HasColumnType("float");
+
                     b.Property<string>("Issn")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("ISSN");
 
                     b.Property<string>("JournalName")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("nvarchar(300)");
 
                     b.Property<string>("Publisher")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("JournalId")
                         .HasName("PK__Journals__250103E6EDD19799");
@@ -236,7 +334,6 @@ namespace SWP391.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("KeywordId"));
 
                     b.Property<string>("KeywordText")
-                        .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
@@ -246,12 +343,13 @@ namespace SWP391.Migrations
                     b.HasKey("KeywordId")
                         .HasName("PK__Keywords__37C13521B41C6024");
 
-                    b.HasIndex("TopicId");
-
                     b.HasIndex(new[] { "KeywordText" }, "IX_Keywords_Text");
 
+                    b.HasIndex(new[] { "TopicId" }, "IX_Keywords_TopicId");
+
                     b.HasIndex(new[] { "KeywordText" }, "UQ__Keywords__219EE3D704701796")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[KeywordText] IS NOT NULL");
 
                     b.ToTable("Keywords");
                 });
@@ -275,7 +373,6 @@ namespace SWP391.Migrations
                         .HasDefaultValue(false);
 
                     b.Property<string>("Message")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<long?>("RelatedId")
@@ -285,7 +382,7 @@ namespace SWP391.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("UserId")
+                    b.Property<int?>("UserId")
                         .HasColumnType("int");
 
                     b.HasKey("NotificationId")
@@ -331,19 +428,71 @@ namespace SWP391.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Title")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("PaperId")
                         .HasName("PK__Papers__AB86120B6AA80FBB");
 
-                    b.HasIndex("JournalId");
+                    b.HasIndex(new[] { "JournalId" }, "IX_Papers_JournalId");
 
-                    b.HasIndex("SourceId");
+                    b.HasIndex(new[] { "SourceId" }, "IX_Papers_SourceId");
 
                     b.HasIndex(new[] { "PublicationYear" }, "IX_Papers_Year");
 
                     b.ToTable("Papers");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.PaperAuthor", b =>
+                {
+                    b.Property<long>("PaperId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Affiliation")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("AuthorOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool?>("IsCorresponding")
+                        .HasColumnType("bit");
+
+                    b.HasKey("PaperId", "AuthorId")
+                        .HasName("PK__PaperAut__FC8BBDC843D72F9A");
+
+                    b.HasIndex(new[] { "AuthorId" }, "IX_PaperAuthors_AuthorId");
+
+                    b.ToTable("PaperAuthors", (string)null);
+                });
+
+            modelBuilder.Entity("SWP391.Entities.PaperCitation", b =>
+                {
+                    b.Property<long>("CitationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CitationId"));
+
+                    b.Property<long>("CitedPaperId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CitingPaperId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("CitationId")
+                        .HasName("PK__PaperCit__EAD2ADFB7C803DC4");
+
+                    b.HasIndex("CitedPaperId");
+
+                    b.HasIndex("CitingPaperId");
+
+                    b.ToTable("PaperCitations");
                 });
 
             modelBuilder.Entity("SWP391.Entities.PublicationTrend", b =>
@@ -362,25 +511,55 @@ namespace SWP391.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("(sysdatetime())");
 
-                    b.Property<int>("PaperCount")
+                    b.Property<int?>("PaperCount")
                         .HasColumnType("int");
 
                     b.Property<int?>("TopicId")
                         .HasColumnType("int");
 
-                    b.Property<int>("TrendYear")
+                    b.Property<int?>("TrendYear")
                         .HasColumnType("int");
 
                     b.HasKey("TrendId")
                         .HasName("PK__Publicat__DACD10F79107C7D0");
 
-                    b.HasIndex("KeywordId");
+                    b.HasIndex(new[] { "KeywordId" }, "IX_PublicationTrends_KeywordId");
 
                     b.HasIndex(new[] { "TrendYear" }, "IX_PublicationTrends_Year");
 
                     b.HasIndex(new[] { "TopicId", "TrendYear" }, "IX_Trends_TopicYear");
 
                     b.ToTable("PublicationTrends");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.ResearchGroup", b =>
+                {
+                    b.Property<int>("GroupId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("GroupId"));
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GroupName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("OwnerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("GroupId")
+                        .HasName("PK__Research__149AF36A1F2F87A7");
+
+                    b.HasIndex("OwnerId");
+
+                    b.ToTable("ResearchGroups");
                 });
 
             modelBuilder.Entity("SWP391.Entities.ResearchTopic", b =>
@@ -395,7 +574,6 @@ namespace SWP391.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TopicName")
-                        .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
@@ -403,9 +581,46 @@ namespace SWP391.Migrations
                         .HasName("PK__Research__022E0F5D6DD9197C");
 
                     b.HasIndex(new[] { "TopicName" }, "UQ__Research__6C795E8C662E12F0")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[TopicName] IS NOT NULL");
 
                     b.ToTable("ResearchTopics");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.RevokedToken", b =>
+                {
+                    b.Property<long>("RevokedTokenId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("RevokedTokenId"));
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("RevokedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("(sysdatetime())");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("RevokedTokenId");
+
+                    b.HasIndex(new[] { "ExpiresAt" }, "IX_RevokedTokens_ExpiresAt");
+
+                    b.HasIndex(new[] { "TokenHash" }, "IX_RevokedTokens_TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "UserId" }, "IX_RevokedTokens_UserId");
+
+                    b.ToTable("RevokedTokens");
                 });
 
             modelBuilder.Entity("SWP391.Entities.Role", b =>
@@ -464,7 +679,7 @@ namespace SWP391.Migrations
                     b.Property<int?>("RecordsFetched")
                         .HasColumnType("int");
 
-                    b.Property<int>("SourceId")
+                    b.Property<int?>("SourceId")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("StartTime")
@@ -477,7 +692,7 @@ namespace SWP391.Migrations
                     b.HasKey("SyncJobId")
                         .HasName("PK__SyncJobs__1078C047AFB584C5");
 
-                    b.HasIndex("SourceId");
+                    b.HasIndex(new[] { "SourceId" }, "IX_SyncJobs_SourceId");
 
                     b.ToTable("SyncJobs");
                 });
@@ -600,6 +815,40 @@ namespace SWP391.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.UserPreference", b =>
+                {
+                    b.Property<long>("PreferenceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PreferenceId"));
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NotificationFrequency")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("PreferredField")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("PreferredYearRange")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PreferenceId")
+                        .HasName("PK__UserPref__E228496F80308D5A");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserPreferences");
+                });
+
             modelBuilder.Entity("UserRole", b =>
                 {
                     b.Property<int>("UserId")
@@ -610,26 +859,9 @@ namespace SWP391.Migrations
 
                     b.HasKey("UserId", "RoleId");
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex(new[] { "RoleId" }, "IX_UserRoles_RoleId");
 
                     b.ToTable("UserRoles", (string)null);
-                });
-
-            modelBuilder.Entity("PaperAuthor", b =>
-                {
-                    b.HasOne("SWP391.Entities.Author", null)
-                        .WithMany()
-                        .HasForeignKey("AuthorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK__PaperAuth__Autho__3C69FB99");
-
-                    b.HasOne("SWP391.Entities.Paper", null)
-                        .WithMany()
-                        .HasForeignKey("PaperId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("FK__PaperAuth__Paper__3B75D760");
                 });
 
             modelBuilder.Entity("PaperKeyword", b =>
@@ -649,14 +881,32 @@ namespace SWP391.Migrations
                         .HasConstraintName("FK__PaperKeyw__Paper__45F365D3");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.ActivityLog", b =>
+                {
+                    b.HasOne("SWP391.Entities.User", "User")
+                        .WithMany("ActivityLogs")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SWP391.Entities.Bookmark", b =>
                 {
                     b.HasOne("SWP391.Entities.User", "User")
                         .WithMany("Bookmarks")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
                         .HasConstraintName("FK__Bookmarks__UserI__4F7CD00D");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.DashboardReport", b =>
+                {
+                    b.HasOne("SWP391.Entities.User", "User")
+                        .WithMany("DashboardReports")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK__Dashboard__UserI__5070F446");
 
                     b.Navigation("User");
                 });
@@ -677,9 +927,26 @@ namespace SWP391.Migrations
                     b.HasOne("SWP391.Entities.User", "User")
                         .WithMany("Follows")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
                         .HasConstraintName("FK__Follows__UserId__534D60F1");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.GroupMember", b =>
+                {
+                    b.HasOne("SWP391.Entities.ResearchGroup", "Group")
+                        .WithMany("GroupMembers")
+                        .HasForeignKey("GroupId")
+                        .IsRequired()
+                        .HasConstraintName("FK__GroupMemb__Group__68487DD7");
+
+                    b.HasOne("SWP391.Entities.User", "User")
+                        .WithMany("GroupMembers")
+                        .HasForeignKey("UserId")
+                        .IsRequired()
+                        .HasConstraintName("FK__GroupMemb__UserI__693CA210");
+
+                    b.Navigation("Group");
 
                     b.Navigation("User");
                 });
@@ -699,8 +966,6 @@ namespace SWP391.Migrations
                     b.HasOne("SWP391.Entities.User", "User")
                         .WithMany("Notifications")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
                         .HasConstraintName("FK__Notificat__UserI__5812160E");
 
                     b.Navigation("User");
@@ -723,6 +988,44 @@ namespace SWP391.Migrations
                     b.Navigation("Source");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.PaperAuthor", b =>
+                {
+                    b.HasOne("SWP391.Entities.Author", "Author")
+                        .WithMany("PaperAuthors")
+                        .HasForeignKey("AuthorId")
+                        .IsRequired()
+                        .HasConstraintName("FK__PaperAuth__Autho__3C69FB99");
+
+                    b.HasOne("SWP391.Entities.Paper", "Paper")
+                        .WithMany("PaperAuthors")
+                        .HasForeignKey("PaperId")
+                        .IsRequired()
+                        .HasConstraintName("FK__PaperAuth__Paper__3B75D760");
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Paper");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.PaperCitation", b =>
+                {
+                    b.HasOne("SWP391.Entities.Paper", "CitedPaper")
+                        .WithMany("PaperCitationCitedPapers")
+                        .HasForeignKey("CitedPaperId")
+                        .IsRequired()
+                        .HasConstraintName("FK__PaperCita__Cited__628FA481");
+
+                    b.HasOne("SWP391.Entities.Paper", "CitingPaper")
+                        .WithMany("PaperCitationCitingPapers")
+                        .HasForeignKey("CitingPaperId")
+                        .IsRequired()
+                        .HasConstraintName("FK__PaperCita__Citin__619B8048");
+
+                    b.Navigation("CitedPaper");
+
+                    b.Navigation("CitingPaper");
+                });
+
             modelBuilder.Entity("SWP391.Entities.PublicationTrend", b =>
                 {
                     b.HasOne("SWP391.Entities.Keyword", "Keyword")
@@ -740,12 +1043,33 @@ namespace SWP391.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.ResearchGroup", b =>
+                {
+                    b.HasOne("SWP391.Entities.User", "Owner")
+                        .WithMany("ResearchGroups")
+                        .HasForeignKey("OwnerId")
+                        .IsRequired()
+                        .HasConstraintName("FK__ResearchG__Owner__656C112C");
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.RevokedToken", b =>
+                {
+                    b.HasOne("SWP391.Entities.User", "User")
+                        .WithMany("RevokedTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SWP391.Entities.SyncJob", b =>
                 {
                     b.HasOne("SWP391.Entities.ApiDataSource", "Source")
                         .WithMany("SyncJobs")
                         .HasForeignKey("SourceId")
-                        .IsRequired()
                         .HasConstraintName("FK__SyncJobs__Source__5AEE82B9");
 
                     b.Navigation("Source");
@@ -754,18 +1078,28 @@ namespace SWP391.Migrations
             modelBuilder.Entity("SWP391.Entities.TrendSnapshot", b =>
                 {
                     b.HasOne("SWP391.Entities.Keyword", "Keyword")
-                        .WithMany()
+                        .WithMany("TrendSnapshots")
                         .HasForeignKey("KeywordId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("SWP391.Entities.ResearchTopic", "Topic")
-                        .WithMany()
+                        .WithMany("TrendSnapshots")
                         .HasForeignKey("TopicId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Keyword");
 
                     b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.UserPreference", b =>
+                {
+                    b.HasOne("SWP391.Entities.User", "User")
+                        .WithMany("UserPreferences")
+                        .HasForeignKey("UserId")
+                        .HasConstraintName("FK__UserPrefe__UserI__2E1BDC42");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("UserRole", b =>
@@ -792,6 +1126,11 @@ namespace SWP391.Migrations
                     b.Navigation("SyncJobs");
                 });
 
+            modelBuilder.Entity("SWP391.Entities.Author", b =>
+                {
+                    b.Navigation("PaperAuthors");
+                });
+
             modelBuilder.Entity("SWP391.Entities.Journal", b =>
                 {
                     b.Navigation("Papers");
@@ -800,6 +1139,22 @@ namespace SWP391.Migrations
             modelBuilder.Entity("SWP391.Entities.Keyword", b =>
                 {
                     b.Navigation("PublicationTrends");
+
+                    b.Navigation("TrendSnapshots");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.Paper", b =>
+                {
+                    b.Navigation("PaperAuthors");
+
+                    b.Navigation("PaperCitationCitedPapers");
+
+                    b.Navigation("PaperCitationCitingPapers");
+                });
+
+            modelBuilder.Entity("SWP391.Entities.ResearchGroup", b =>
+                {
+                    b.Navigation("GroupMembers");
                 });
 
             modelBuilder.Entity("SWP391.Entities.ResearchTopic", b =>
@@ -807,15 +1162,29 @@ namespace SWP391.Migrations
                     b.Navigation("Keywords");
 
                     b.Navigation("PublicationTrends");
+
+                    b.Navigation("TrendSnapshots");
                 });
 
             modelBuilder.Entity("SWP391.Entities.User", b =>
                 {
+                    b.Navigation("ActivityLogs");
+
                     b.Navigation("Bookmarks");
+
+                    b.Navigation("DashboardReports");
 
                     b.Navigation("Follows");
 
+                    b.Navigation("GroupMembers");
+
                     b.Navigation("Notifications");
+
+                    b.Navigation("ResearchGroups");
+
+                    b.Navigation("RevokedTokens");
+
+                    b.Navigation("UserPreferences");
                 });
 #pragma warning restore 612, 618
         }

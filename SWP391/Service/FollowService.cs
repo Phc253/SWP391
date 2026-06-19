@@ -30,7 +30,7 @@ namespace SWP391.Service
                 return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Author', 'Journal', 'ResearchTopic').");
             }
 
-            var type = request.TargetType.Trim();
+            var type = NormalizeTargetType(request.TargetType);
 
             // [BƯỚC 1]: Kiểm tra thực thể có tồn tại không
             if (type.Equals("Author", StringComparison.OrdinalIgnoreCase))
@@ -88,21 +88,25 @@ namespace SWP391.Service
             var follows = await _followRepository.GetUserFollowsAsync(userId);
             var resultList = new List<FollowItemResponse>();
 
-            var authorIds = follows
-                .Where(f => f.TargetType.Equals("Author", StringComparison.OrdinalIgnoreCase))
-                .Select(f => (int)f.TargetId)
+            var validFollows = follows
+                .Where(f => f.TargetId.HasValue && !string.IsNullOrWhiteSpace(f.TargetType))
+                .ToList();
+
+            var authorIds = validFollows
+                .Where(f => f.TargetType!.Equals("Author", StringComparison.OrdinalIgnoreCase))
+                .Select(f => (int)f.TargetId!.Value)
                 .Distinct()
                 .ToList();
 
-            var journalIds = follows
-                .Where(f => f.TargetType.Equals("Journal", StringComparison.OrdinalIgnoreCase))
-                .Select(f => (int)f.TargetId)
+            var journalIds = validFollows
+                .Where(f => f.TargetType!.Equals("Journal", StringComparison.OrdinalIgnoreCase))
+                .Select(f => (int)f.TargetId!.Value)
                 .Distinct()
                 .ToList();
 
-            var topicIds = follows
-                .Where(f => f.TargetType.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
-                .Select(f => (int)f.TargetId)
+            var topicIds = validFollows
+                .Where(f => f.TargetType!.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
+                .Select(f => (int)f.TargetId!.Value)
                 .Distinct()
                 .ToList();
 
@@ -124,36 +128,38 @@ namespace SWP391.Service
                 topics = await _dbContext.ResearchTopics.Where(t => topicIds.Contains(t.TopicId)).ToListAsync();
             }
 
-            foreach (var f in follows)
+            foreach (var f in validFollows)
             {
+                var targetId = f.TargetId!.Value;
+                var targetType = f.TargetType!;
                 var item = new FollowItemResponse
                 {
                     FollowId = f.FollowId,
-                    TargetId = f.TargetId,
-                    TargetType = f.TargetType,
+                    TargetId = targetId,
+                    TargetType = targetType,
                     CreatedAt = f.CreatedAt
                 };
 
-                if (f.TargetType.Equals("Author", StringComparison.OrdinalIgnoreCase))
+                if (targetType.Equals("Author", StringComparison.OrdinalIgnoreCase))
                 {
-                    var author = authors.FirstOrDefault(a => a.AuthorId == f.TargetId);
+                    var author = authors.FirstOrDefault(a => a.AuthorId == targetId);
                     if (author != null)
                     {
                         item.AuthorName = author.AuthorName;
                         item.PaperCount = author.Papers?.Count ?? 0;
                     }
                 }
-                else if (f.TargetType.Equals("Journal", StringComparison.OrdinalIgnoreCase))
+                else if (targetType.Equals("Journal", StringComparison.OrdinalIgnoreCase))
                 {
-                    var journal = journals.FirstOrDefault(j => j.JournalId == f.TargetId);
+                    var journal = journals.FirstOrDefault(j => j.JournalId == targetId);
                     if (journal != null)
                     {
                         item.JournalName = journal.JournalName;
                     }
                 }
-                else if (f.TargetType.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
+                else if (targetType.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
                 {
-                    var topic = topics.FirstOrDefault(t => t.TopicId == f.TargetId);
+                    var topic = topics.FirstOrDefault(t => t.TopicId == targetId);
                     if (topic != null)
                     {
                         item.TopicName = topic.TopicName;
@@ -164,6 +170,28 @@ namespace SWP391.Service
             }
 
             return ServiceResult<List<FollowItemResponse>>.Ok(resultList);
+        }
+
+        private static string NormalizeTargetType(string targetType)
+        {
+            var type = targetType.Trim();
+            if (type.Equals("Topic", StringComparison.OrdinalIgnoreCase) ||
+                type.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
+            {
+                return "ResearchTopic";
+            }
+
+            if (type.Equals("Journal", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Journal";
+            }
+
+            if (type.Equals("Author", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Author";
+            }
+
+            return type;
         }
     }
 }

@@ -11,21 +11,53 @@ namespace SWP391.Controllers
     public class AdminController : ControllerBase
     {
         private readonly AdminService _adminService;
+        private readonly ActivityLogService _activityLogService;
 
-        public AdminController(AdminService adminService)
+        public AdminController(AdminService adminService, ActivityLogService activityLogService)
         {
             _adminService = adminService;
+            _activityLogService = activityLogService;
         }
 
         // ── User Management ───────────────────────────────────────────────────────────
 
-        // GET: api/admin/users?page=1&pageSize=20
+        // GET: api/admin/users?page=1&pageSize=20&search=&roleId=
         [HttpGet("users")]
         public async Task<IActionResult> GetUsers(
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 20)
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? search = null,
+            [FromQuery] int? roleId = null)
         {
-            var result = await _adminService.GetUsersAsync(page, pageSize);
+            var result = await _adminService.GetUsersAsync(page, pageSize, search, roleId);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // POST: api/admin/users
+        [HttpPost("users")]
+        public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+        {
+            var result = await _adminService.CreateUserAsync(request);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("already exists") || result.Error.Contains("invalid") ||
+                    result.Error.Contains("required") || result.Error.Contains("too long") ||
+                    result.Error.Contains("future") || result.Error.Contains("ActorType"))
+                    return BadRequest(result);
+                return StatusCode(500, result);
+            }
+
+            return CreatedAtAction(nameof(GetUserById), new { id = result.Data!.UserId }, result.Data);
+        }
+
+        // GET: api/admin/roles
+        [HttpGet("roles")]
+        public async Task<IActionResult> GetRoles()
+        {
+            var result = await _adminService.GetRolesAsync();
             if (!result.Success)
                 return StatusCode(500, result);
 
@@ -102,6 +134,116 @@ namespace SWP391.Controllers
             var result = await _adminService.UpdateSettingAsync(key, request.Value);
             if (!result.Success)
                 return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Activity Logs ─────────────────────────────────────────────────────────────
+
+        // GET: api/admin/activity-logs?page=1&pageSize=20&userId=&action=
+        [HttpGet("activity-logs")]
+        public async Task<IActionResult> GetActivityLogs(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] int? userId = null,
+            [FromQuery] string? action = null)
+        {
+            var result = await _activityLogService.GetLogsAsync(page, pageSize, userId, action);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Scheduler Configuration ───────────────────────────────────────────────────
+
+        // GET: api/admin/scheduler-config
+        [HttpGet("scheduler-config")]
+        public async Task<IActionResult> GetSchedulerConfig()
+        {
+            var result = await _adminService.GetSchedulerConfigAsync();
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // PUT: api/admin/scheduler-config
+        [HttpPut("scheduler-config")]
+        public async Task<IActionResult> UpdateSchedulerConfig([FromBody] SchedulerConfigRequest request)
+        {
+            var result = await _adminService.UpdateSchedulerConfigAsync(request);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // PATCH: api/admin/scheduler-config/enable
+        [HttpPatch("scheduler-config/enable")]
+        public async Task<IActionResult> EnableScheduler()
+        {
+            var result = await _adminService.SetSchedulerEnabledAsync(true);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // PATCH: api/admin/scheduler-config/disable
+        [HttpPatch("scheduler-config/disable")]
+        public async Task<IActionResult> DisableScheduler()
+        {
+            var result = await _adminService.SetSchedulerEnabledAsync(false);
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result.Data);
+        }
+
+        // ── Role Assignment ───────────────────────────────────────────────────────────
+
+        // POST: api/admin/users/{id}/roles
+        // Body: { "roleId": 2 }
+        [HttpPost("users/{id}/roles")]
+        public async Task<IActionResult> AssignRole(int id, [FromBody] AssignRoleRequest request)
+        {
+            var result = await _adminService.AssignRoleAsync(id, request.RoleId);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("not found"))
+                    return NotFound(result);
+                return BadRequest(result);
+            }
+
+            return Ok(result.Data);
+        }
+
+        // DELETE: api/admin/users/{id}/roles/{roleId}
+        [HttpDelete("users/{id}/roles/{roleId}")]
+        public async Task<IActionResult> RemoveRole(int id, int roleId)
+        {
+            var result = await _adminService.RemoveRoleAsync(id, roleId);
+            if (!result.Success)
+            {
+                if (result.Error!.Contains("not found"))
+                    return NotFound(result);
+                return BadRequest(result);
+            }
+
+            return Ok(result.Data);
+        }
+
+        // ── Admin Stats ───────────────────────────────────────────────────────────────
+
+        // GET: api/admin/stats
+        // Operational overview: user health, sync job health (last 30 days), recent activity.
+        [HttpGet("stats")]
+        public async Task<IActionResult> GetAdminStats()
+        {
+            var result = await _adminService.GetAdminStatsAsync();
+            if (!result.Success)
+                return StatusCode(500, new { error = result.Error });
 
             return Ok(result.Data);
         }

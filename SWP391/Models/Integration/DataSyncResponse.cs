@@ -13,6 +13,7 @@ namespace SWP391.Models.Integration
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
         public string? ErrorMessage { get; set; }
+        public int NotificationsCreated { get; set; }
         public ComputeTrendsResponse? TrendComputation { get; set; }
     }
 }

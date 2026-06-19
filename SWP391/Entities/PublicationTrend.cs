@@ -11,9 +11,9 @@ public partial class PublicationTrend
 
     public int? KeywordId { get; set; }
 
-    public int TrendYear { get; set; }
+    public int? TrendYear { get; set; }
 
-    public int PaperCount { get; set; }
+    public int? PaperCount { get; set; }
 
     public DateTime? LastUpdated { get; set; }
 

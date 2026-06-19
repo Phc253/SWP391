@@ -13,17 +13,23 @@ namespace SWP391.Service
         private readonly ScientificTrendDbContext _dbContext;
         private readonly AcademicDataIntegrationService _integrationService;
         private readonly TrendService _trendService;
+        private readonly NotificationTriggerService _notificationTriggerService;
+        private readonly ActivityLogService _activityLogService;
         private readonly ILogger<DataSyncService> _logger;
 
         public DataSyncService(
             ScientificTrendDbContext dbContext,
             AcademicDataIntegrationService integrationService,
             TrendService trendService,
+            NotificationTriggerService notificationTriggerService,
+            ActivityLogService activityLogService,
             ILogger<DataSyncService> logger)
         {
             _dbContext = dbContext;
             _integrationService = integrationService;
             _trendService = trendService;
+            _notificationTriggerService = notificationTriggerService;
+            _activityLogService = activityLogService;
             _logger = logger;
         }
 
@@ -44,16 +50,42 @@ namespace SWP391.Service
             _dbContext.SyncJobs.Add(syncJob);
             await _dbContext.SaveChangesAsync();
 
+            await _activityLogService.LogAsync(
+                userId: null,
+                action: "SyncTriggered",
+                targetType: "SyncJob",
+                targetId: syncJob.SyncJobId,
+                details: $"OpenAlex sync started: keyword={keyword}, maxResults={maxResults}");
+
             try
             {
-                int recordsFetched = await _integrationService.FetchAndSaveDataFromOpenAlexAsync(keyword, maxResults);
-                syncJob.RecordsFetched = recordsFetched;
+                var ingestionResult = await _integrationService.FetchAndSaveDataFromOpenAlexAsync(keyword, maxResults);
+                syncJob.RecordsFetched = ingestionResult.SavedCount;
+
+                var warnings = new List<string>();
+                int notificationsCreated = 0;
+
+                try
+                {
+                    notificationsCreated = await _notificationTriggerService.TriggerForNewPapersAsync(
+                        ingestionResult.NewPaperIds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Notification trigger failed for SyncJobId={SyncJobId}", syncJob.SyncJobId);
+                    warnings.Add("Notification trigger failed: " + ex.Message);
+                }
 
                 var trendResult = await _trendService.ComputeTrendsAsync();
                 if (!trendResult.Success)
                 {
+                    warnings.Add("Trend computation failed: " + trendResult.Error);
+                }
+
+                if (warnings.Any())
+                {
                     syncJob.Status = "CompletedWithWarnings";
-                    syncJob.ErrorMessage = trendResult.Error;
+                    syncJob.ErrorMessage = string.Join(" | ", warnings);
                 }
                 else
                 {
@@ -63,17 +95,25 @@ namespace SWP391.Service
                 syncJob.EndTime = DateTime.UtcNow;
                 await _dbContext.SaveChangesAsync();
 
+                await _activityLogService.LogAsync(
+                    userId: null,
+                    action: "SyncCompleted",
+                    targetType: "SyncJob",
+                    targetId: syncJob.SyncJobId,
+                    details: $"Status={syncJob.Status}, RecordsFetched={syncJob.RecordsFetched}");
+
                 return ServiceResult<DataSyncResponse>.Ok(new DataSyncResponse
                 {
                     SyncJobId = syncJob.SyncJobId,
                     SourceName = source.SourceName,
                     Keyword = keyword,
                     MaxResults = maxResults,
-                    RecordsFetched = recordsFetched,
+                    RecordsFetched = ingestionResult.SavedCount,
                     Status = syncJob.Status,
                     StartTime = syncJob.StartTime,
                     EndTime = syncJob.EndTime,
                     ErrorMessage = syncJob.ErrorMessage,
+                    NotificationsCreated = notificationsCreated,
                     TrendComputation = trendResult.Data
                 });
             }
@@ -85,6 +125,13 @@ namespace SWP391.Service
                 syncJob.EndTime = DateTime.UtcNow;
                 syncJob.ErrorMessage = ex.Message;
                 await _dbContext.SaveChangesAsync();
+
+                await _activityLogService.LogAsync(
+                    userId: null,
+                    action: "SyncFailed",
+                    targetType: "SyncJob",
+                    targetId: syncJob.SyncJobId,
+                    details: ex.Message);
 
                 return ServiceResult<DataSyncResponse>.Fail($"OpenAlex sync failed. SyncJobId={syncJob.SyncJobId}. Error: {ex.Message}");
             }

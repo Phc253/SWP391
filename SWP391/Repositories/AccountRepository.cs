@@ -70,5 +70,51 @@ namespace SWP391.Repositories
             token.User.IsActive = true;
             await _dbContext.SaveChangesAsync();
         }
+
+        public Task<bool> IsTokenRevokedAsync(string tokenHash)
+        {
+            var now = DateTime.UtcNow;
+
+            return _dbContext.RevokedTokens
+                .AsNoTracking()
+                .AnyAsync(t => t.TokenHash == tokenHash && t.ExpiresAt > now);
+        }
+
+        public async Task RevokeTokenAsync(string tokenHash, int userId, DateTime expiresAt)
+        {
+            var now = DateTime.UtcNow;
+            var exists = await _dbContext.RevokedTokens
+                .AnyAsync(t => t.TokenHash == tokenHash);
+
+            if (exists)
+            {
+                return;
+            }
+
+            _dbContext.RevokedTokens.Add(new RevokedToken
+            {
+                UserId = userId,
+                TokenHash = tokenHash,
+                ExpiresAt = expiresAt,
+                RevokedAt = now
+            });
+
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                _dbContext.ChangeTracker.Clear();
+                var wasInsertedConcurrently = await _dbContext.RevokedTokens
+                    .AsNoTracking()
+                    .AnyAsync(t => t.TokenHash == tokenHash);
+
+                if (!wasInsertedConcurrently)
+                {
+                    throw;
+                }
+            }
+        }
     }
 }

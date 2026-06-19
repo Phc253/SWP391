@@ -10,13 +10,10 @@ namespace SWP391.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "ActorType",
-                table: "Users",
-                type: "nvarchar(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "Student");
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Users', 'ActorType') IS NULL
+    ALTER TABLE [Users] ADD [ActorType] nvarchar(50) NOT NULL CONSTRAINT [DF_Users_ActorType] DEFAULT N'Student';
+");
         }
 
         /// <inheritdoc />

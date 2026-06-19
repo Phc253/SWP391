@@ -82,13 +82,17 @@ namespace SWP391.Service
             var resultList = new List<BookmarkItemResponse>();
 
             // Tách các Type ra để query dữ liệu gốc (tránh N+1)
-            var paperIds = bookmarks.Where(b => b.TargetType.Equals("Paper", StringComparison.OrdinalIgnoreCase))
-                                    .Select(b => b.TargetId)
-                                    .ToList();
+            var validBookmarks = bookmarks
+                .Where(b => b.TargetId.HasValue && !string.IsNullOrWhiteSpace(b.TargetType))
+                .ToList();
 
-            var keywordIds = bookmarks.Where(b => b.TargetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
-                                      .Select(b => (int)b.TargetId)
-                                      .ToList();
+            var paperIds = validBookmarks.Where(b => b.TargetType!.Equals("Paper", StringComparison.OrdinalIgnoreCase))
+                                         .Select(b => b.TargetId!.Value)
+                                         .ToList();
+
+            var keywordIds = validBookmarks.Where(b => b.TargetType!.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                                           .Select(b => (int)b.TargetId!.Value)
+                                           .ToList();
 
             var papers = new List<Paper>();
             if (paperIds.Any())
@@ -102,19 +106,21 @@ namespace SWP391.Service
                 keywords = await _trendRepository.GetKeywordsByIdsAsync(keywordIds);
             }
 
-            foreach (var b in bookmarks)
+            foreach (var b in validBookmarks)
             {
+                var targetId = b.TargetId!.Value;
+                var targetType = b.TargetType!;
                 var item = new BookmarkItemResponse
                 {
                     BookmarkId = b.BookmarkId,
-                    TargetId = b.TargetId,
-                    TargetType = b.TargetType,
+                    TargetId = targetId,
+                    TargetType = targetType,
                     CreatedAt = b.CreatedAt
                 };
 
-                if (b.TargetType.Equals("Paper", StringComparison.OrdinalIgnoreCase))
+                if (targetType.Equals("Paper", StringComparison.OrdinalIgnoreCase))
                 {
-                    var paper = papers.FirstOrDefault(p => p.PaperId == b.TargetId);
+                    var paper = papers.FirstOrDefault(p => p.PaperId == targetId);
                     if (paper != null)
                     {
                         item.Title = paper.Title;
@@ -122,12 +128,15 @@ namespace SWP391.Service
                         item.PublicationYear = paper.PublicationYear;
                         item.CitationCount = paper.CitationCount;
                         item.JournalName = paper.Journal?.JournalName;
-                        item.Authors = paper.Authors.Select(a => a.AuthorName).ToList();
+                        item.Authors = paper.Authors
+                            .Where(a => !string.IsNullOrWhiteSpace(a.AuthorName))
+                            .Select(a => a.AuthorName!)
+                            .ToList();
                     }
                 }
-                else if (b.TargetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                else if (targetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
                 {
-                    var keyword = keywords.FirstOrDefault(k => k.KeywordId == (int)b.TargetId);
+                    var keyword = keywords.FirstOrDefault(k => k.KeywordId == (int)targetId);
                     if (keyword != null)
                     {
                         item.KeywordText = keyword.KeywordText;

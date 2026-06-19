@@ -1,4 +1,22 @@
 /* =====================================================
+   DATABASE MAINTENANCE NOTE
+=====================================================
+
+   EF Core migrations are the source of truth for incremental
+   database updates.
+
+   Recommended for teammates after pulling new migrations:
+   dotnet ef database update --project SWP391 --startup-project SWP391
+
+   Generated idempotent SQL script:
+   SWP391/Memory/Database_Latest_EF.sql
+
+   This file is a clean-create reference script. It drops and recreates
+   ScientificTrendDB, so do not use it for updating a database that has
+   data you want to keep.
+===================================================== */
+
+/* =====================================================
    DATABASE CREATION
 ===================================================== */
 
@@ -69,7 +87,6 @@ CREATE TABLE UserRoles (
 );
 
 
-
 /* =====================================================
    2. EXTERNAL API SOURCES
 ===================================================== */
@@ -80,7 +97,6 @@ CREATE TABLE ApiDataSources (
     BaseUrl NVARCHAR(500),
     IsActive BIT DEFAULT 1
 );
-
 
 
 /* =====================================================
@@ -163,7 +179,6 @@ CREATE TABLE PaperKeywords (
 );
 
 
-
 /* =====================================================
    4. ANALYTICS DOMAIN
 ===================================================== */
@@ -183,6 +198,26 @@ CREATE TABLE PublicationTrends (
         REFERENCES Keywords(KeywordId)
 );
 
+CREATE TABLE TrendSnapshots (
+    SnapshotId BIGINT IDENTITY PRIMARY KEY,
+    KeywordId INT NULL,
+    TopicId INT NULL,
+    SnapshotDate DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+    TrendScore FLOAT NOT NULL,
+    GrowthRate FLOAT NOT NULL,
+    Momentum FLOAT NOT NULL,
+    CitationVelocity FLOAT NOT NULL,
+    PaperCount INT NOT NULL,
+    RecentPaperCount INT NOT NULL,
+
+    FOREIGN KEY (KeywordId)
+        REFERENCES Keywords(KeywordId)
+        ON DELETE SET NULL,
+
+    FOREIGN KEY (TopicId)
+        REFERENCES ResearchTopics(TopicId)
+        ON DELETE SET NULL
+);
 
 
 /* =====================================================
@@ -214,7 +249,6 @@ CREATE TABLE Follows (
 );
 
 
-
 /* =====================================================
    6. NOTIFICATION SYSTEM
 ===================================================== */
@@ -234,9 +268,28 @@ CREATE TABLE Notifications (
 );
 
 
+/* =====================================================
+   7. ADMIN & AUDIT
+===================================================== */
+
+CREATE TABLE ActivityLogs (
+    ActivityLogId BIGINT IDENTITY PRIMARY KEY,
+    UserId INT NULL,
+    Action NVARCHAR(100) NOT NULL,
+    TargetType NVARCHAR(50) NULL,
+    TargetId BIGINT NULL,
+    Details NVARCHAR(MAX) NULL,
+    IpAddress NVARCHAR(45) NULL,
+    CreatedAt DATETIME2 NOT NULL DEFAULT SYSDATETIME(),
+
+    FOREIGN KEY (UserId)
+        REFERENCES Users(UserId)
+        ON DELETE SET NULL
+);
+
 
 /* =====================================================
-   7. DATA SYNCHRONIZATION
+   8. DATA SYNCHRONIZATION
 ===================================================== */
 
 CREATE TABLE SyncJobs (
@@ -253,9 +306,8 @@ CREATE TABLE SyncJobs (
 );
 
 
-
 /* =====================================================
-   8. SYSTEM SETTINGS
+   9. SYSTEM SETTINGS
 ===================================================== */
 
 CREATE TABLE SystemSettings (
@@ -264,9 +316,8 @@ CREATE TABLE SystemSettings (
 );
 
 
-
 /* =====================================================
-   9. PERFORMANCE INDEXES
+   10. PERFORMANCE INDEXES
 ===================================================== */
 
 CREATE INDEX IX_Papers_Year
@@ -275,8 +326,14 @@ ON Papers(PublicationYear);
 CREATE INDEX IX_Keywords_Text
 ON Keywords(KeywordText);
 
+CREATE INDEX IX_Keywords_TopicId
+ON Keywords(TopicId);
+
 CREATE INDEX IX_PublicationTrends_Year
 ON PublicationTrends(TrendYear);
+
+CREATE INDEX IX_PublicationTrends_KeywordId
+ON PublicationTrends(KeywordId);
 
 CREATE INDEX IX_Trends_TopicYear
 ON PublicationTrends(TopicId, TrendYear);
@@ -295,5 +352,38 @@ ON EmailVerificationTokens(TokenHash);
 
 CREATE INDEX IX_EmailVerificationTokens_User_UsedAt
 ON EmailVerificationTokens(UserId, UsedAt);
+
+CREATE INDEX IX_ActivityLogs_CreatedAt
+ON ActivityLogs(CreatedAt);
+
+CREATE INDEX IX_ActivityLogs_UserId
+ON ActivityLogs(UserId);
+
+CREATE INDEX IX_PaperAuthors_AuthorId
+ON PaperAuthors(AuthorId);
+
+CREATE INDEX IX_PaperKeywords_KeywordId
+ON PaperKeywords(KeywordId);
+
+CREATE INDEX IX_Papers_JournalId
+ON Papers(JournalId);
+
+CREATE INDEX IX_Papers_SourceId
+ON Papers(SourceId);
+
+CREATE INDEX IX_SyncJobs_SourceId
+ON SyncJobs(SourceId);
+
+CREATE INDEX IX_UserRoles_RoleId
+ON UserRoles(RoleId);
+
+CREATE INDEX IX_TrendSnapshots_Date
+ON TrendSnapshots(SnapshotDate);
+
+CREATE INDEX IX_TrendSnapshots_Keyword_Date
+ON TrendSnapshots(KeywordId, SnapshotDate);
+
+CREATE INDEX IX_TrendSnapshots_Topic_Date
+ON TrendSnapshots(TopicId, SnapshotDate);
 
 GO

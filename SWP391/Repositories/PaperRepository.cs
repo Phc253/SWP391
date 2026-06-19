@@ -12,7 +12,7 @@ namespace SWP391.Repositories
             _dbContext = dbContext;
         }
 
-        public async Task<(List<Paper> Papers, int TotalCount)> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize)
+        public async Task<(List<Paper> Papers, int TotalCount)> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize, int? publicationYear = null)
         {
             // Bước 1: Khởi tạo IQueryable cơ bản và nạp sẵn các liên kết (Eager Loading) cần thiết 
             // để lấy Journal, Authors, Keywords tránh lỗi N+1
@@ -38,6 +38,12 @@ namespace SWP391.Repositories
             if (!string.IsNullOrWhiteSpace(journal))
             {
                 query = query.Where(p => p.Journal != null && p.Journal.JournalName.Contains(journal));
+            }
+
+            // Bước 4b: Lọc theo năm xuất bản. Bài có PublicationYear = null bị loại (OpenAlex preprints).
+            if (publicationYear.HasValue)
+            {
+                query = query.Where(p => p.PublicationYear == publicationYear.Value);
             }
 
             // Lấy tổng số lượng bản ghi thỏa mãn điều kiện để support API phân trang (Pagination)

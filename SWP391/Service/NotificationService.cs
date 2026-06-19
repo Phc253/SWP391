@@ -81,6 +81,20 @@ namespace SWP391.Service
             }
         }
 
+        public async Task<ServiceResult<int>> GetUnreadCountAsync(int userId)
+        {
+            try
+            {
+                var count = await _notificationRepository.CountUnreadAsync(userId);
+                return ServiceResult<int>.Ok(count);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<int>.Fail(
+                    "An error occurred while counting unread notifications: " + ex.Message);
+            }
+        }
+
         // Delete a notification — enforces ownership.
         public async Task<ServiceResult<bool>> DeleteAsync(int userId, long notificationId)
         {

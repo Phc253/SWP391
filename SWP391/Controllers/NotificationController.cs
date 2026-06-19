@@ -34,7 +34,7 @@ namespace SWP391.Controllers
 
             if (!result.Success)
                 return BadRequest(result);
-
+                
             return Ok(result.Data);
         }
 
@@ -67,6 +67,17 @@ namespace SWP391.Controllers
                 return BadRequest(result);
 
             return Ok(new { message = "All notifications marked as read." });
+        }
+
+        // GET: api/notifications/unread-count
+        // Lightweight badge-count endpoint — returns the number of unread notifications.
+        [HttpGet("unread-count")]
+        public async Task<IActionResult> GetUnreadCount()
+        {
+            var result = await _notificationService.GetUnreadCountAsync(GetCurrentUserId());
+            if (!result.Success)
+                return BadRequest(new { error = result.Error });
+            return Ok(new { unreadCount = result.Data });
         }
 
         // DELETE: api/notifications/{id}

@@ -12,12 +12,11 @@ namespace SWP391.Repositories
             _dbContext = dbContext;
         }
 
-        // Get paginated notifications for a user — unread first, then newest first
         public async Task<List<Notification>> GetByUserIdAsync(int userId, int page, int pageSize)
         {
             return await _dbContext.Notifications
                 .Where(n => n.UserId == userId)
-                .OrderBy(n => n.IsRead)           // false (0) sorts before true (1)
+                .OrderBy(n => n.IsRead)
                 .ThenByDescending(n => n.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -25,7 +24,6 @@ namespace SWP391.Repositories
                 .ToListAsync();
         }
 
-        // Total count for pagination metadata
         public async Task<int> CountByUserIdAsync(int userId)
         {
             return await _dbContext.Notifications
@@ -36,6 +34,41 @@ namespace SWP391.Repositories
         {
             return await _dbContext.Notifications
                 .FirstOrDefaultAsync(n => n.NotificationId == notificationId);
+        }
+
+        public async Task<List<Notification>> GetExistingByRelatedAsync(
+            string relatedType,
+            IEnumerable<long> relatedIds,
+            IEnumerable<int> userIds)
+        {
+            var ids = relatedIds.Distinct().ToList();
+            var users = userIds.Distinct().ToList();
+
+            if (!ids.Any() || !users.Any())
+            {
+                return new List<Notification>();
+            }
+
+            return await _dbContext.Notifications
+                .Where(n =>
+                    n.RelatedType == relatedType &&
+                    n.RelatedId.HasValue &&
+                    n.UserId.HasValue &&
+                    ids.Contains(n.RelatedId.Value) &&
+                    users.Contains(n.UserId.Value))
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
+        public async Task AddRangeAsync(List<Notification> notifications)
+        {
+            if (!notifications.Any())
+            {
+                return;
+            }
+
+            await _dbContext.Notifications.AddRangeAsync(notifications);
+            await _dbContext.SaveChangesAsync();
         }
 
         public async Task<bool> MarkAsReadAsync(long notificationId)
@@ -50,7 +83,6 @@ namespace SWP391.Repositories
             return true;
         }
 
-        // Bulk update — uses ExecuteUpdateAsync to avoid loading all rows into memory
         public async Task<int> MarkAllAsReadAsync(int userId)
         {
             return await _dbContext.Notifications
@@ -70,7 +102,6 @@ namespace SWP391.Repositories
             return true;
         }
 
-        // Count unread — useful for badge counts on frontend (included for completeness)
         public async Task<int> CountUnreadAsync(int userId)
         {
             return await _dbContext.Notifications

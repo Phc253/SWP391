@@ -224,6 +224,32 @@ namespace SWP391.Service
             });
         }
 
+        public async Task<ServiceResult<string>> LogoutAsync(string token, int userId)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return ServiceResult<string>.Fail("Token is required.");
+            }
+
+            JwtSecurityToken jwtToken;
+            try
+            {
+                jwtToken = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            }
+            catch
+            {
+                return ServiceResult<string>.Fail("Invalid token.");
+            }
+
+            if (jwtToken.ValidTo <= DateTime.UtcNow)
+            {
+                return ServiceResult<string>.Fail("Token is already expired.");
+            }
+
+            await _accountRepository.RevokeTokenAsync(HashToken(token), userId, jwtToken.ValidTo);
+            return ServiceResult<string>.Ok("Logout successful.");
+        }
+
         private static bool VerifyPassword(string enteredPassword, string storedHash)
         {
             var parts = storedHash.Split('.', 2);
@@ -266,7 +292,7 @@ namespace SWP391.Service
             return WebEncoders.Base64UrlEncode(bytes);
         }
 
-        private static string HashToken(string token)
+        public static string HashToken(string token)
         {
             var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
             return Convert.ToBase64String(hash);

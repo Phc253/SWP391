@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using SWP391.Entities;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SWP391.Repositories
 {
@@ -15,21 +12,63 @@ namespace SWP391.Repositories
             _dbContext = dbContext;
         }
 
-        // Tìm xem user này đã follow đối tượng này (targetId, targetType) chưa
         public async Task<Follow?> GetFollowAsync(int userId, long targetId, string targetType)
         {
+            var targetTypes = GetEquivalentTargetTypes(targetType);
+
             return await _dbContext.Follows
-                .FirstOrDefaultAsync(f => f.UserId == userId && f.TargetId == targetId && f.TargetType == targetType);
+                .FirstOrDefaultAsync(f =>
+                    f.UserId == userId &&
+                    f.TargetId == targetId &&
+                    f.TargetType != null &&
+                    targetTypes.Contains(f.TargetType.ToLower()));
         }
 
-        // Kiểm tra xem user này đã follow đối tượng này chưa (trả về boolean)
         public async Task<bool> IsFollowingAsync(int userId, long targetId, string targetType)
         {
+            var targetTypes = GetEquivalentTargetTypes(targetType);
+
             return await _dbContext.Follows
-                .AnyAsync(f => f.UserId == userId && f.TargetId == targetId && f.TargetType == targetType);
+                .AnyAsync(f =>
+                    f.UserId == userId &&
+                    f.TargetId == targetId &&
+                    f.TargetType != null &&
+                    targetTypes.Contains(f.TargetType.ToLower()));
         }
 
-        // Lấy danh sách toàn bộ mục đã follow của user, sắp xếp mới nhất lên đầu
+        public async Task<List<Follow>> GetFollowsByTargetIdsAsync(string targetType, IEnumerable<long> targetIds)
+        {
+            return await GetFollowsByTargetTypesAsync(new[] { targetType }, targetIds);
+        }
+
+        public async Task<List<Follow>> GetFollowsByTargetTypesAsync(IEnumerable<string> targetTypes, IEnumerable<long> targetIds)
+        {
+            var ids = targetIds.Distinct().ToList();
+            if (!ids.Any())
+            {
+                return new List<Follow>();
+            }
+
+            var normalizedTypes = targetTypes
+                .SelectMany(GetEquivalentTargetTypes)
+                .Distinct()
+                .ToList();
+
+            if (!normalizedTypes.Any())
+            {
+                return new List<Follow>();
+            }
+
+            return await _dbContext.Follows
+                .Where(f =>
+                    f.TargetId.HasValue &&
+                    f.TargetType != null &&
+                    ids.Contains(f.TargetId.Value) &&
+                    normalizedTypes.Contains(f.TargetType.ToLower()))
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
         public async Task<List<Follow>> GetUserFollowsAsync(int userId)
         {
             return await _dbContext.Follows
@@ -39,18 +78,27 @@ namespace SWP391.Repositories
                 .ToListAsync();
         }
 
-        // Thêm follow mới
         public async Task AddFollowAsync(Follow follow)
         {
             await _dbContext.Follows.AddAsync(follow);
-            await _dbContext.SaveChangesAsync(); // Commit xuống DB
+            await _dbContext.SaveChangesAsync();
         }
 
-        // Xóa follow
         public async Task RemoveFollowAsync(Follow follow)
         {
             _dbContext.Follows.Remove(follow);
-            await _dbContext.SaveChangesAsync(); // Commit xuống DB
+            await _dbContext.SaveChangesAsync();
+        }
+
+        private static List<string> GetEquivalentTargetTypes(string targetType)
+        {
+            var normalized = targetType.Trim().ToLower();
+            if (normalized == "topic" || normalized == "researchtopic")
+            {
+                return new List<string> { "topic", "researchtopic" };
+            }
+
+            return new List<string> { normalized };
         }
     }
 }

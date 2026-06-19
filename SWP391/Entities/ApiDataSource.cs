@@ -7,7 +7,7 @@ public partial class ApiDataSource
 {
     public int SourceId { get; set; }
 
-    public string SourceName { get; set; } = null!;
+    public string? SourceName { get; set; }
 
     public string? BaseUrl { get; set; }
 

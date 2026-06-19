@@ -11,99 +11,82 @@ namespace SWP391.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTime>(
-                name: "DateOfBirth",
-                table: "Users",
-                type: "date",
-                nullable: true);
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Users', 'DateOfBirth') IS NULL
+    ALTER TABLE [Users] ADD [DateOfBirth] date NULL;
+");
 
-            migrationBuilder.AddColumn<string>(
-                name: "PhoneNumber",
-                table: "Users",
-                type: "nvarchar(20)",
-                maxLength: 20,
-                nullable: true);
+            migrationBuilder.Sql(@"
+IF COL_LENGTH('Users', 'PhoneNumber') IS NULL
+    ALTER TABLE [Users] ADD [PhoneNumber] nvarchar(20) NULL;
+");
 
-            migrationBuilder.CreateTable(
-                name: "EmailVerificationTokens",
-                columns: table => new
-                {
-                    EmailVerificationTokenId = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    TokenHash = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(sysdatetime())"),
-                    UsedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_EmailVerificationTokens", x => x.EmailVerificationTokenId);
-                    table.ForeignKey(
-                        name: "FK_EmailVerificationTokens_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "UserId",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [EmailVerificationTokens] (
+        [EmailVerificationTokenId] bigint NOT NULL IDENTITY,
+        [UserId] int NOT NULL,
+        [TokenHash] nvarchar(255) NOT NULL,
+        [ExpiresAt] datetime2 NOT NULL,
+        [CreatedAt] datetime2 NOT NULL DEFAULT ((sysdatetime())),
+        [UsedAt] datetime2 NULL,
+        CONSTRAINT [PK_EmailVerificationTokens] PRIMARY KEY ([EmailVerificationTokenId]),
+        CONSTRAINT [FK_EmailVerificationTokens_Users_UserId] FOREIGN KEY ([UserId]) REFERENCES [Users] ([UserId]) ON DELETE CASCADE
+    );
+END
+");
 
-            migrationBuilder.CreateTable(
-                name: "TrendSnapshots",
-                columns: table => new
-                {
-                    SnapshotId = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    KeywordId = table.Column<int>(type: "int", nullable: true),
-                    TopicId = table.Column<int>(type: "int", nullable: true),
-                    SnapshotDate = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "(sysdatetime())"),
-                    TrendScore = table.Column<double>(type: "float", nullable: false),
-                    GrowthRate = table.Column<double>(type: "float", nullable: false),
-                    Momentum = table.Column<double>(type: "float", nullable: false),
-                    CitationVelocity = table.Column<double>(type: "float", nullable: false),
-                    PaperCount = table.Column<int>(type: "int", nullable: false),
-                    RecentPaperCount = table.Column<int>(type: "int", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_TrendSnapshots", x => x.SnapshotId);
-                    table.ForeignKey(
-                        name: "FK_TrendSnapshots_Keywords_KeywordId",
-                        column: x => x.KeywordId,
-                        principalTable: "Keywords",
-                        principalColumn: "KeywordId",
-                        onDelete: ReferentialAction.SetNull);
-                    table.ForeignKey(
-                        name: "FK_TrendSnapshots_ResearchTopics_TopicId",
-                        column: x => x.TopicId,
-                        principalTable: "ResearchTopics",
-                        principalColumn: "TopicId",
-                        onDelete: ReferentialAction.SetNull);
-                });
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [TrendSnapshots] (
+        [SnapshotId] bigint NOT NULL IDENTITY,
+        [KeywordId] int NULL,
+        [TopicId] int NULL,
+        [SnapshotDate] datetime2 NOT NULL DEFAULT ((sysdatetime())),
+        [TrendScore] float NOT NULL,
+        [GrowthRate] float NOT NULL,
+        [Momentum] float NOT NULL,
+        [CitationVelocity] float NOT NULL,
+        [PaperCount] int NOT NULL,
+        [RecentPaperCount] int NOT NULL,
+        CONSTRAINT [PK_TrendSnapshots] PRIMARY KEY ([SnapshotId]),
+        CONSTRAINT [FK_TrendSnapshots_Keywords_KeywordId] FOREIGN KEY ([KeywordId]) REFERENCES [Keywords] ([KeywordId]) ON DELETE SET NULL,
+        CONSTRAINT [FK_TrendSnapshots_ResearchTopics_TopicId] FOREIGN KEY ([TopicId]) REFERENCES [ResearchTopics] ([TopicId]) ON DELETE SET NULL
+    );
+END
+");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_EmailVerificationTokens_TokenHash",
-                table: "EmailVerificationTokens",
-                column: "TokenHash");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_EmailVerificationTokens_TokenHash' AND object_id = OBJECT_ID(N'[EmailVerificationTokens]'))
+    CREATE INDEX [IX_EmailVerificationTokens_TokenHash] ON [EmailVerificationTokens] ([TokenHash]);
+");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_EmailVerificationTokens_User_UsedAt",
-                table: "EmailVerificationTokens",
-                columns: new[] { "UserId", "UsedAt" });
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[EmailVerificationTokens]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_EmailVerificationTokens_User_UsedAt' AND object_id = OBJECT_ID(N'[EmailVerificationTokens]'))
+    CREATE INDEX [IX_EmailVerificationTokens_User_UsedAt] ON [EmailVerificationTokens] ([UserId], [UsedAt]);
+");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_TrendSnapshots_Date",
-                table: "TrendSnapshots",
-                column: "SnapshotDate");
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+    CREATE INDEX [IX_TrendSnapshots_Date] ON [TrendSnapshots] ([SnapshotDate]);
+");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_TrendSnapshots_Keyword_Date",
-                table: "TrendSnapshots",
-                columns: new[] { "KeywordId", "SnapshotDate" });
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Keyword_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+    CREATE INDEX [IX_TrendSnapshots_Keyword_Date] ON [TrendSnapshots] ([KeywordId], [SnapshotDate]);
+");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_TrendSnapshots_Topic_Date",
-                table: "TrendSnapshots",
-                columns: new[] { "TopicId", "SnapshotDate" });
+            migrationBuilder.Sql(@"
+IF OBJECT_ID(N'[TrendSnapshots]', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_TrendSnapshots_Topic_Date' AND object_id = OBJECT_ID(N'[TrendSnapshots]'))
+    CREATE INDEX [IX_TrendSnapshots_Topic_Date] ON [TrendSnapshots] ([TopicId], [SnapshotDate]);
+");
         }
 
         /// <inheritdoc />

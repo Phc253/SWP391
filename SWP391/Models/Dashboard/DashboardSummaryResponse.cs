@@ -10,6 +10,7 @@ namespace SWP391.Models.Dashboard
         public int TotalTopics { get; set; }
         public List<YearPaperCount> PapersByYear { get; set; } = new();
         public List<TopKeywordStat> TopKeywords { get; set; } = new();
+        public List<TrendingItem> TrendingKeywords { get; set; } = new();
         public DateTime? LastSyncTime { get; set; }
     }
 
@@ -23,5 +24,17 @@ namespace SWP391.Models.Dashboard
     {
         public string Keyword { get; set; } = null!;
         public int PaperCount { get; set; }
+    }
+
+    // Sourced from the latest TrendSnapshot per (KeywordId, TopicId).
+    // Replaces raw paper-count sorting with the canonical trend score.
+    public class TrendingItem
+    {
+        public string Name { get; set; } = null!;
+        public string Type { get; set; } = null!;           // "Keyword" or "Topic"
+        public double TrendScore { get; set; }              // 0-100
+        public double GrowthRate { get; set; }
+        public int RecentPaperCount { get; set; }
+        public DateTime SnapshotDate { get; set; }
     }
 }
