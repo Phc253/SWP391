@@ -8,6 +8,7 @@ using System.Text;
 using SWP391.Entities;
 using SWP391.Models;
 using SWP391.Models.Account;
+using SWP391.Models.Common;
 using SWP391.Repositories;
 
 namespace SWP391.Service
@@ -17,6 +18,7 @@ namespace SWP391.Service
         private const int MinPasswordLength = 6;
         private const int MaxPasswordLength = 100;
         private const int EmailVerificationTokenHours = 24;
+        private const string InvalidCredentialsMessage = "Invalid email or password.";
 
         private readonly AccountRepository _accountRepository;
         private readonly IConfiguration _configuration;
@@ -31,7 +33,7 @@ namespace SWP391.Service
         {
             if (request == null)
             {
-                return ServiceResult<RegisterResponse>.Fail("Request body is required.");
+                return ServiceResult<RegisterResponse>.Fail("Request body is required.", ErrorCodes.ValidationError);
             }
 
             var email = request.Email?.Trim();
@@ -42,58 +44,61 @@ namespace SWP391.Service
 
             if (string.IsNullOrWhiteSpace(email))
             {
-                return ServiceResult<RegisterResponse>.Fail("Email is required.");
+                return ServiceResult<RegisterResponse>.Fail("Email is required.", ErrorCodes.ValidationError);
             }
 
             if (!IsValidEmail(email))
             {
-                return ServiceResult<RegisterResponse>.Fail("Email is invalid.");
+                return ServiceResult<RegisterResponse>.Fail("Email is invalid.", ErrorCodes.ValidationError);
             }
 
             if (password.Length < MinPasswordLength)
             {
-                return ServiceResult<RegisterResponse>.Fail("Password must be at least 6 characters.");
+                return ServiceResult<RegisterResponse>.Fail("Password must be at least 6 characters.", ErrorCodes.ValidationError);
             }
 
             if (password.Length > MaxPasswordLength)
             {
-                return ServiceResult<RegisterResponse>.Fail("Password is too long.");
+                return ServiceResult<RegisterResponse>.Fail("Password is too long.", ErrorCodes.ValidationError);
             }
 
             if (fullName != null && fullName.Length > 150)
             {
-                return ServiceResult<RegisterResponse>.Fail("Full name is too long.");
+                return ServiceResult<RegisterResponse>.Fail("Full name is too long.", ErrorCodes.ValidationError);
             }
 
             if (!request.DateOfBirth.HasValue)
             {
-                return ServiceResult<RegisterResponse>.Fail("Date of birth is required.");
+                return ServiceResult<RegisterResponse>.Fail("Date of birth is required.", ErrorCodes.ValidationError);
             }
 
             if (request.DateOfBirth.Value.Date > DateTime.UtcNow.Date)
             {
-                return ServiceResult<RegisterResponse>.Fail("Date of birth cannot be in the future.");
+                return ServiceResult<RegisterResponse>.Fail("Date of birth cannot be in the future.", ErrorCodes.ValidationError);
             }
 
             if (string.IsNullOrWhiteSpace(phoneNumber))
             {
-                return ServiceResult<RegisterResponse>.Fail("Phone number is required.");
+                return ServiceResult<RegisterResponse>.Fail("Phone number is required.", ErrorCodes.ValidationError);
             }
 
             if (phoneNumber.Length > 20)
             {
-                return ServiceResult<RegisterResponse>.Fail("Phone number is too long.");
+                return ServiceResult<RegisterResponse>.Fail("Phone number is too long.", ErrorCodes.ValidationError);
             }
 
             if (string.IsNullOrEmpty(actorType))
             {
-                return ServiceResult<RegisterResponse>.Fail("ActorType must be one of: Researcher, Lecturer, Student.");
+                return ServiceResult<RegisterResponse>.Fail("ActorType must be one of: Researcher, Lecturer, Student.", ErrorCodes.ValidationError);
             }
 
             var existingUser = await _accountRepository.GetUserByEmailAsync(email);
             if (existingUser != null)
             {
-                return ServiceResult<RegisterResponse>.Fail("Email already exists.");
+                return ServiceResult<RegisterResponse>.Fail(
+                    "Email already exists.",
+                    ErrorCodes.ResourceConflict,
+                    StatusCodes.Status409Conflict);
             }
 
             var user = new User
@@ -164,23 +169,28 @@ namespace SWP391.Service
         {
             if (request == null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             {
-                return ServiceResult<LoginResponse>.Fail("Invalid credentials.");
+                return ServiceResult<LoginResponse>.Fail(
+                    InvalidCredentialsMessage,
+                    ErrorCodes.InvalidCredentials,
+                    StatusCodes.Status401Unauthorized);
             }
 
-            var user = await _accountRepository.GetUserByEmailAsync(request.Email);
-            if (user == null)
+            var email = request.Email.Trim();
+            var user = await _accountRepository.GetUserByEmailAsync(email);
+            if (user == null || !VerifyPassword(request.Password, user.PasswordHash))
             {
-                return ServiceResult<LoginResponse>.Fail("User not found.");
+                return ServiceResult<LoginResponse>.Fail(
+                    InvalidCredentialsMessage,
+                    ErrorCodes.InvalidCredentials,
+                    StatusCodes.Status401Unauthorized);
             }
 
             if (user.IsActive != true)
             {
-                return ServiceResult<LoginResponse>.Fail("Please verify your email before logging in.");
-            }
-
-            if (!VerifyPassword(request.Password, user.PasswordHash))
-            {
-                return ServiceResult<LoginResponse>.Fail("Invalid password.");
+                return ServiceResult<LoginResponse>.Fail(
+                    "Please verify your email before logging in.",
+                    ErrorCodes.EmailNotVerified,
+                    StatusCodes.Status403Forbidden);
             }
 
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -228,7 +238,7 @@ namespace SWP391.Service
         {
             if (string.IsNullOrWhiteSpace(token))
             {
-                return ServiceResult<string>.Fail("Token is required.");
+                return ServiceResult<string>.Fail("Token is required.", ErrorCodes.Unauthorized, StatusCodes.Status401Unauthorized);
             }
 
             JwtSecurityToken jwtToken;
@@ -238,12 +248,12 @@ namespace SWP391.Service
             }
             catch
             {
-                return ServiceResult<string>.Fail("Invalid token.");
+                return ServiceResult<string>.Fail("Invalid token.", ErrorCodes.Unauthorized, StatusCodes.Status401Unauthorized);
             }
 
             if (jwtToken.ValidTo <= DateTime.UtcNow)
             {
-                return ServiceResult<string>.Fail("Token is already expired.");
+                return ServiceResult<string>.Fail("Token is already expired.", ErrorCodes.Unauthorized, StatusCodes.Status401Unauthorized);
             }
 
             await _accountRepository.RevokeTokenAsync(HashToken(token), userId, jwtToken.ValidTo);
@@ -271,14 +281,14 @@ namespace SWP391.Service
         {
             if (string.IsNullOrWhiteSpace(token))
             {
-                return ServiceResult<string>.Fail("Verification token is required.");
+                return ServiceResult<string>.Fail("Verification token is required.", ErrorCodes.ValidationError);
             }
 
             var tokenHash = HashToken(token.Trim());
             var verificationToken = await _accountRepository.GetValidEmailVerificationTokenAsync(tokenHash);
             if (verificationToken == null)
             {
-                return ServiceResult<string>.Fail("Verification link is invalid or expired.");
+                return ServiceResult<string>.Fail("Verification link is invalid or expired.", ErrorCodes.ValidationError);
             }
 
             await _accountRepository.MarkEmailVerifiedAsync(verificationToken);
@@ -340,5 +350,6 @@ namespace SWP391.Service
 
             await client.SendMailAsync(message);
         }
+
     }
 }
