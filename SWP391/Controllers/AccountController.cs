@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using SWP391.Models.Account;
+using SWP391.Extensions;
+using SWP391.Models.Common;
 using SWP391.Service;
 using System.Security.Claims;
 
@@ -24,7 +26,7 @@ namespace SWP391.Controllers
             var result = await _accountServices.RegisterAsync(request);
             if (!result.Success)
             {
-                return BadRequest(new { message = result.Error });
+                return this.ToErrorResult(result);
             }
 
             return Ok(result.Data);
@@ -36,7 +38,7 @@ namespace SWP391.Controllers
             var result = await _accountServices.LoginAsync(request);
             if (!result.Success)
             {
-                return Unauthorized(new { message = result.Error });
+                return this.ToErrorResult(result);
             }
 
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
@@ -56,19 +58,25 @@ namespace SWP391.Controllers
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!int.TryParse(userIdClaim, out var userId))
             {
-                return Unauthorized(new { message = "Invalid token." });
+                return this.ErrorResult(
+                    ErrorCodes.Unauthorized,
+                    "Invalid token.",
+                    StatusCodes.Status401Unauthorized);
             }
 
             var token = GetBearerToken(Request);
             if (string.IsNullOrWhiteSpace(token))
             {
-                return Unauthorized(new { message = "Bearer token is required." });
+                return this.ErrorResult(
+                    ErrorCodes.Unauthorized,
+                    "Bearer token is required.",
+                    StatusCodes.Status401Unauthorized);
             }
 
             var logoutResult = await _accountServices.LogoutAsync(token, userId);
             if (!logoutResult.Success)
             {
-                return BadRequest(new { message = logoutResult.Error });
+                return this.ToErrorResult(logoutResult);
             }
 
             var email = User.FindFirstValue(ClaimTypes.Email);
@@ -91,7 +99,7 @@ namespace SWP391.Controllers
             var result = await _accountServices.VerifyEmailAsync(token);
             if (!result.Success)
             {
-                return BadRequest(new { message = result.Error });
+                return this.ToErrorResult(result);
             }
 
             return Ok(new { message = result.Data });

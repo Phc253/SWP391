@@ -1,6 +1,7 @@
 ﻿namespace SWP391.Middlewares;
 using System.Net;
 using System.Text.Json;
+using SWP391.Models.Common;
 
 public class ExceptionMiddleware
 {
@@ -33,10 +34,12 @@ public class ExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
-        // Đây là cái "Hợp đồng" với Frontend (Dùng DTO để thống nhất)
-        object response = _env.IsDevelopment()
-            ? new { StatusCode = context.Response.StatusCode, Message = ex.Message, Detail = ex.StackTrace?.ToString() }
-            : new { StatusCode = context.Response.StatusCode, Message = "Internal Server Error từ hệ thống SWP." };
+        var response = new ApiErrorResponse
+        {
+            Code = ErrorCodes.InternalError,
+            Message = "An unexpected error occurred.",
+            TraceId = context.TraceIdentifier
+        };
 
         var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         var json = JsonSerializer.Serialize(response, options);
