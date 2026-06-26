@@ -23,46 +23,11 @@ namespace SWP391.Service
         {
             try
             {
+                maxResults = Math.Clamp(maxResults, 1, 100);
                 var encodedKeyword = Uri.EscapeDataString(keyword);
-                var url = $"https://api.openalex.org/works?search={encodedKeyword}&per-page={maxResults}";
+                var url = $"https://api.openalex.org/works?search={encodedKeyword}&per_page={maxResults}";
 
-                var response = await _httpClient.GetAsync(url);
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("OpenAlex API failed with status code {Status}", response.StatusCode);
-                    return new DataIngestionResult();
-                }
-
-                _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
-
-                var content = await response.Content.ReadAsStringAsync();
-                var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-
-                if (data?.Results == null || !data.Results.Any())
-                {
-                    _logger.LogInformation("OpenAlex returned no results for keyword {Keyword}.", keyword);
-                    return new DataIngestionResult();
-                }
-
-                _logger.LogInformation("OpenAlex returned {Count} results for keyword {Keyword}.", data.Results.Count, keyword);
-
-                var source = await EnsureOpenAlexSourceAsync();
-
-                var newPaperIds = new List<long>();
-                foreach (var work in data.Results)
-                {
-                    var paperId = await ProcessWorkAsync(work, source);
-                    if (paperId.HasValue)
-                    {
-                        newPaperIds.Add(paperId.Value);
-                    }
-                }
-
-                return new DataIngestionResult
-                {
-                    SavedCount = newPaperIds.Count,
-                    NewPaperIds = newPaperIds
-                };
+                return await FetchAndProcessOpenAlexListAsync(url, keyword, refreshExistingCitation: true);
             }
             catch (Exception ex)
             {
@@ -71,8 +36,89 @@ namespace SWP391.Service
             }
         }
 
+        public async Task<DataIngestionResult> FetchOpenAlexWorksAsync(
+            string keyword = "Computer Science",
+            int maxResults = 40,
+            string? cursor = null)
+        {
+            try
+            {
+                maxResults = Math.Clamp(maxResults, 1, 100);
+                var currentYear = DateTime.UtcNow.Year;
+                var encodedKeyword = Uri.EscapeDataString(keyword);
+                var cursorClause = string.IsNullOrWhiteSpace(cursor)
+                    ? string.Empty
+                    : $"&cursor={Uri.EscapeDataString(cursor)}";
+                var url = $"https://api.openalex.org/works?search.title_and_abstract={encodedKeyword}&filter=publication_year:{currentYear}&sort=cited_by_count:desc&per_page={maxResults}{cursorClause}";
+
+                return await FetchAndProcessOpenAlexListAsync(url, keyword, refreshExistingCitation: false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error occurred while fetching citation-ranked works from OpenAlex");
+                throw;
+            }
+        }
+
+        public async Task<DataIngestionResult> RefreshExistingOpenAlexWorksAsync(IEnumerable<string> externalIds)
+        {
+            var result = new DataIngestionResult();
+            var source = await EnsureOpenAlexSourceAsync();
+
+            foreach (var externalId in externalIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct())
+            {
+                try
+                {
+                    var workId = GetOpenAlexWorkIdForPath(externalId);
+                    if (string.IsNullOrWhiteSpace(workId))
+                    {
+                        continue;
+                    }
+
+                    var url = $"https://api.openalex.org/works/{Uri.EscapeDataString(workId)}";
+                    var response = await _httpClient.GetAsync(url);
+                    var content = await response.Content.ReadAsStringAsync();
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        _logger.LogWarning(
+                            "OpenAlex refresh failed. Url={Url} ExternalId={ExternalId} Status={Status} Body={Body}",
+                            url,
+                            externalId,
+                            response.StatusCode,
+                            content);
+                        continue;
+                    }
+
+                    var work = JsonSerializer.Deserialize<WorkData>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (work == null)
+                    {
+                        continue;
+                    }
+
+                    result.FetchedCount++;
+                    var processed = await ProcessWorkAsync(work, source, refreshExistingCitation: true);
+                    if (processed.NewPaperId.HasValue)
+                    {
+                        result.NewPaperIds.Add(processed.NewPaperId.Value);
+                        result.SavedCount++;
+                    }
+
+                    if (processed.UpdatedExisting)
+                    {
+                        result.UpdatedCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error refreshing OpenAlex work ExternalId={ExternalId}; skipping", externalId);
+                }
+            }
+
+            return result;
+        }
+
         // Fetches papers from OpenAlex for multiple keywords with optional year-range filter.
-        // URL pattern: /works?search={keyword}[&filter=publication_year:{yearFrom}-{yearTo}]&per-page={max}
+        // URL pattern: /works?search={keyword}[&filter=publication_year:{yearFrom}-{yearTo}]&per_page={max}
         // Per-keyword failures are logged and skipped — the batch continues.
         public async Task<int> FetchAndSaveFilteredAsync(
             IEnumerable<string> keywords,
@@ -91,7 +137,7 @@ namespace SWP391.Service
                     string filterClause = (yearFrom.HasValue && yearTo.HasValue)
                         ? $"&filter=publication_year:{yearFrom}-{yearTo}"
                         : string.Empty;
-                    var url = $"https://api.openalex.org/works?search={encodedKeyword}{filterClause}&per-page={maxResultsPerKeyword}";
+                    var url = $"https://api.openalex.org/works?search={encodedKeyword}{filterClause}&per_page={maxResultsPerKeyword}";
 
                     var response = await _httpClient.GetAsync(url);
                     if (!response.IsSuccessStatusCode)
@@ -108,7 +154,7 @@ namespace SWP391.Service
 
                     foreach (var work in data.Results)
                     {
-                        if ((await ProcessWorkAsync(work, source)).HasValue)
+                        if ((await ProcessWorkAsync(work, source, refreshExistingCitation: false)).NewPaperId.HasValue)
                             totalSaved++;
                     }
                 }
@@ -119,6 +165,60 @@ namespace SWP391.Service
             }
 
             return totalSaved;
+        }
+
+        private async Task<DataIngestionResult> FetchAndProcessOpenAlexListAsync(
+            string url,
+            string keyword,
+            bool refreshExistingCitation)
+        {
+            var response = await _httpClient.GetAsync(url);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError(
+                    "OpenAlex API failed. Url={Url} Status={Status} Body={Body}",
+                    url,
+                    response.StatusCode,
+                    content);
+                return new DataIngestionResult();
+            }
+
+            _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
+
+            var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (data?.Results == null || !data.Results.Any())
+            {
+                _logger.LogInformation("OpenAlex returned no results for keyword {Keyword}.", keyword);
+                return new DataIngestionResult();
+            }
+
+            _logger.LogInformation("OpenAlex returned {Count} results for keyword {Keyword}.", data.Results.Count, keyword);
+
+            var source = await EnsureOpenAlexSourceAsync();
+            var result = new DataIngestionResult
+            {
+                FetchedCount = data.Results.Count,
+                NextCursor = data.Meta?.NextCursor
+            };
+
+            foreach (var work in data.Results)
+            {
+                var processed = await ProcessWorkAsync(work, source, refreshExistingCitation);
+                if (processed.NewPaperId.HasValue)
+                {
+                    result.NewPaperIds.Add(processed.NewPaperId.Value);
+                    result.SavedCount++;
+                }
+
+                if (processed.UpdatedExisting)
+                {
+                    result.UpdatedCount++;
+                }
+            }
+
+            return result;
         }
 
         // Ensures the OpenAlex ApiDataSource row exists and returns it.
@@ -140,18 +240,30 @@ namespace SWP391.Service
         }
 
         // Processes a single OpenAlex work: deduplicates, creates journal/authors/keywords, saves paper.
-        // Returns the new PaperId when saved, or null for duplicates/invalid works.
-        private async Task<long?> ProcessWorkAsync(WorkData work, ApiDataSource source)
+        private async Task<ProcessedWorkResult> ProcessWorkAsync(
+            WorkData work,
+            ApiDataSource source,
+            bool refreshExistingCitation)
         {
-            if (string.IsNullOrWhiteSpace(work.Title)) return null;
+            if (string.IsNullOrWhiteSpace(work.Title))
+                return new ProcessedWorkResult();
 
             var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
             if (existingPaper != null)
-            {   
-                existingPaper.CitationCount = work.CitationCount ?? existingPaper.CitationCount;
-                await _dbContext.SaveChangesAsync();
+            {
+                if (refreshExistingCitation &&
+                    work.CitationCount is int citationCount &&
+                    existingPaper.CitationCount != citationCount)
+                {
+                    existingPaper.CitationCount = citationCount;
+                    await _dbContext.SaveChangesAsync();
+
+                    _logger.LogDebug("Updated citation count for existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
+                    return new ProcessedWorkResult { UpdatedExisting = true };
+                }
+
                 _logger.LogDebug("Skipping existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
-                return null;
+                return new ProcessedWorkResult();
             }
 
             var paper = new Paper
@@ -249,7 +361,18 @@ namespace SWP391.Service
             }
 
             await _dbContext.SaveChangesAsync();
-            return paper.PaperId;
+            return new ProcessedWorkResult { NewPaperId = paper.PaperId };
+        }
+
+        private static string GetOpenAlexWorkIdForPath(string externalId)
+        {
+            var trimmed = externalId.Trim();
+            if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+            {
+                return uri.Segments.LastOrDefault()?.Trim('/') ?? string.Empty;
+            }
+
+            return trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? trimmed;
         }
 
         // Decodes OpenAlex abstract_inverted_index (word → position list) back into plain text.
@@ -269,6 +392,12 @@ namespace SWP391.Service
             }
 
             return string.Join(" ", words.Where(w => w.Word != null).Select(w => w.Word));
+        }
+
+        private class ProcessedWorkResult
+        {
+            public long? NewPaperId { get; set; }
+            public bool UpdatedExisting { get; set; }
         }
     }
 }

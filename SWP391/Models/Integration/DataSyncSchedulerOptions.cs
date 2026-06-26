@@ -12,6 +12,10 @@ namespace SWP391.Models.Integration
 
         public int IntervalHours { get; set; } = 24;
 
+        public bool FetchNewWorksEnabled { get; set; } = true;
+
+        public bool RefreshExistingWorksEnabled { get; set; } = true;
+
         public bool RunOnStartup { get; set; } = false;
 
         public TimeSpan GetInterval()
@@ -21,7 +25,7 @@ namespace SWP391.Models.Integration
 
         public int GetMaxResults()
         {
-            return Math.Clamp(MaxResults, 1, 200);
+            return Math.Clamp(MaxResults, 1, 100);
         }
 
         public string GetKeyword()

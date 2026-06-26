@@ -16,12 +16,25 @@ namespace SWP391.Controllers
             _dataSyncService = dataSyncService;
         }
 
-        // Manual admin trigger for the OpenAlex data acquisition pipeline.
-        // Creates a SyncJob, fetches metadata, stores normalized records, then refreshes trend data.
+        // Manual sync trigger. Refreshes citation data for papers already stored locally.
         [HttpPost("sync-openalex")] 
-        public async Task<IActionResult> SyncOpenAlex(string keyword = "Computer Science", int maxResults = 20)
+        public async Task<IActionResult> SyncOpenAlex(int maxResults = 20)
         {
-            var result = await _dataSyncService.SyncOpenAlexAsync   (keyword, maxResults);
+            var result = await _dataSyncService.SyncOpenAlexAsync(maxResults);
+            if (!result.Success)
+                return StatusCode(500, result);
+
+            return Ok(result.Data);
+        }
+
+        // Manual fetch-only trigger. Fetches current-year OpenAlex works sorted by citation count.
+        [HttpPost("/api/fetchdata/openalex")]
+        public async Task<IActionResult> FetchOpenAlex(
+            string keyword = "Computer Science",
+            int maxResults = 20,
+            bool useCheckpoint = false)
+        {
+            var result = await _dataSyncService.FetchOpenAlexAsync(keyword, maxResults, useCheckpoint);
             if (!result.Success)
                 return StatusCode(500, result);
 

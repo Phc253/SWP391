@@ -1,5 +1,5 @@
-using SWP391.Entities;
 using SWP391.Models;
+using SWP391.Models.Papers;
 using SWP391.Repositories;
 
 namespace SWP391.Service
@@ -13,16 +13,29 @@ namespace SWP391.Service
             _paperRepository = paperRepository;
         }
 
-        public async Task<ServiceResult<object>> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize)
+        public Task<ServiceResult<object>> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize)
         {
-            var (papers, totalCount) = await _paperRepository.SearchPapersAsync(keyword, author, journal, page, pageSize);
+            return SearchPapersAsync(new PaperSearchRequest
+            {
+                Keyword = keyword,
+                Author = author,
+                Journal = journal,
+                Page = page,
+                PageSize = pageSize
+            });
+        }
 
-            // Format lại data cho Frontend dễ hiểu và tránh lộ hết các Entity mapping phức tạp
+        public async Task<ServiceResult<object>> SearchPapersAsync(PaperSearchRequest request)
+        {
+            NormalizePaging(request);
+
+            var (papers, totalCount) = await _paperRepository.SearchPapersAsync(request);
+
             var result = new
             {
                 TotalCount = totalCount,
-                Page = page,
-                PageSize = pageSize,
+                Page = request.Page,
+                PageSize = request.PageSize,
                 Items = papers.Select(p => new
                 {
                     p.PaperId,
@@ -36,6 +49,34 @@ namespace SWP391.Service
             };
 
             return ServiceResult<object>.Ok(result);
+        }
+
+        public async Task<ServiceResult<PaperFacetResponse>> GetAuthorFacetsAsync(string? q, int page, int pageSize)
+        {
+            NormalizePaging(ref page, ref pageSize);
+            var response = await _paperRepository.GetAuthorFacetsAsync(q, page, pageSize);
+            return ServiceResult<PaperFacetResponse>.Ok(response);
+        }
+
+        public async Task<ServiceResult<PaperFacetResponse>> GetKeywordFacetsAsync(string? q, int page, int pageSize)
+        {
+            NormalizePaging(ref page, ref pageSize);
+            var response = await _paperRepository.GetKeywordFacetsAsync(q, page, pageSize);
+            return ServiceResult<PaperFacetResponse>.Ok(response);
+        }
+
+        public async Task<ServiceResult<PaperFacetResponse>> GetTopicFacetsAsync(string? q, int page, int pageSize)
+        {
+            NormalizePaging(ref page, ref pageSize);
+            var response = await _paperRepository.GetTopicFacetsAsync(q, page, pageSize);
+            return ServiceResult<PaperFacetResponse>.Ok(response);
+        }
+
+        public async Task<ServiceResult<PaperFacetResponse>> GetJournalFacetsAsync(string? q, int page, int pageSize)
+        {
+            NormalizePaging(ref page, ref pageSize);
+            var response = await _paperRepository.GetJournalFacetsAsync(q, page, pageSize);
+            return ServiceResult<PaperFacetResponse>.Ok(response);
         }
 
         public async Task<ServiceResult<object>> GetPaperDetailsAsync(long id)
@@ -59,6 +100,18 @@ namespace SWP391.Service
             };
 
             return ServiceResult<object>.Ok(result);
+        }
+
+        private static void NormalizePaging(PaperSearchRequest request)
+        {
+            request.Page = Math.Max(1, request.Page);
+            request.PageSize = Math.Clamp(request.PageSize, 1, 100);
+        }
+
+        private static void NormalizePaging(ref int page, ref int pageSize)
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, 100);
         }
     }
 }

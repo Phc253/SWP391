@@ -286,6 +286,8 @@ namespace SWP391.Service
         private const string SchedulerKeywordKey     = "DataSync:Keyword";
         private const string SchedulerMaxResultsKey  = "DataSync:MaxResults";
         private const string SchedulerIntervalKey    = "DataSync:IntervalHours";
+        private const string SchedulerFetchEnabledKey = "DataSync:FetchNewWorksEnabled";
+        private const string SchedulerRefreshEnabledKey = "DataSync:RefreshExistingWorksEnabled";
 
         public async Task<ServiceResult<SchedulerConfigResponse>> GetSchedulerConfigAsync()
         {
@@ -299,7 +301,9 @@ namespace SWP391.Service
                     Enabled       = map.TryGetValue(SchedulerEnabledKey, out var en) && bool.TryParse(en, out var enVal) ? enVal : false,
                     Keyword       = map.TryGetValue(SchedulerKeywordKey, out var kw) && !string.IsNullOrWhiteSpace(kw) ? kw : "Computer Science",
                     MaxResults    = map.TryGetValue(SchedulerMaxResultsKey, out var mr) && int.TryParse(mr, out var mrVal) ? mrVal : 20,
-                    IntervalHours = map.TryGetValue(SchedulerIntervalKey, out var ih) && int.TryParse(ih, out var ihVal) ? ihVal : 24
+                    IntervalHours = map.TryGetValue(SchedulerIntervalKey, out var ih) && int.TryParse(ih, out var ihVal) ? ihVal : 24,
+                    FetchNewWorksEnabled = map.TryGetValue(SchedulerFetchEnabledKey, out var fetchEnabled) && bool.TryParse(fetchEnabled, out var fetchVal) ? fetchVal : true,
+                    RefreshExistingWorksEnabled = map.TryGetValue(SchedulerRefreshEnabledKey, out var refreshEnabled) && bool.TryParse(refreshEnabled, out var refreshVal) ? refreshVal : true
                 };
 
                 return ServiceResult<SchedulerConfigResponse>.Ok(config);
@@ -323,16 +327,24 @@ namespace SWP391.Service
 
                 if (request.MaxResults.HasValue)
                     await _adminRepository.UpsertSettingAsync(SchedulerMaxResultsKey,
-                        Math.Clamp(request.MaxResults.Value, 1, 200).ToString());
+                        Math.Clamp(request.MaxResults.Value, 1, 100).ToString());
 
                 if (request.IntervalHours.HasValue)
                     await _adminRepository.UpsertSettingAsync(SchedulerIntervalKey,
                         Math.Clamp(request.IntervalHours.Value, 1, 720).ToString());
 
+                if (request.FetchNewWorksEnabled.HasValue)
+                    await _adminRepository.UpsertSettingAsync(SchedulerFetchEnabledKey,
+                        request.FetchNewWorksEnabled.Value.ToString().ToLower());
+
+                if (request.RefreshExistingWorksEnabled.HasValue)
+                    await _adminRepository.UpsertSettingAsync(SchedulerRefreshEnabledKey,
+                        request.RefreshExistingWorksEnabled.Value.ToString().ToLower());
+
                 await _activityLogService.LogAsync(
                     userId: null,
                     action: "SchedulerConfigUpdated",
-                    details: $"Enabled={request.Enabled}, Keyword={request.Keyword}, MaxResults={request.MaxResults}, IntervalHours={request.IntervalHours}");
+                    details: $"Enabled={request.Enabled}, Keyword={request.Keyword}, MaxResults={request.MaxResults}, IntervalHours={request.IntervalHours}, FetchNewWorksEnabled={request.FetchNewWorksEnabled}, RefreshExistingWorksEnabled={request.RefreshExistingWorksEnabled}");
 
                 return await GetSchedulerConfigAsync();
             }

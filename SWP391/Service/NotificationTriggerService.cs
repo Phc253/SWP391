@@ -38,6 +38,7 @@ namespace SWP391.Service
                 .Include(p => p.Journal)
                 .Include(p => p.Keywords)
                     .ThenInclude(k => k.Topic)
+                .AsSplitQuery()
                 .AsNoTracking()
                 .ToListAsync();
 
