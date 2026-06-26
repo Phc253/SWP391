@@ -4,10 +4,14 @@ namespace SWP391.Models.Integration
 {
     public class DataSyncResponse
     {
+        public string Operation { get; set; } = null!;
         public long SyncJobId { get; set; }
         public string SourceName { get; set; } = null!;
         public string Keyword { get; set; } = null!;
         public int MaxResults { get; set; }
+        public int ExternalRecordsFetched { get; set; }
+        public int RecordsInserted { get; set; }
+        public int RecordsUpdated { get; set; }
         public int RecordsFetched { get; set; }
         public string Status { get; set; } = null!;
         public DateTime? StartTime { get; set; }

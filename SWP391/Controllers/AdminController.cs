@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using SWP391.Models.Admin;
 using SWP391.Service;
 
@@ -180,10 +181,15 @@ namespace SWP391.Controllers
         }
 
         // PATCH: api/admin/scheduler-config/enable
+        // Saves optional scheduler settings and enables the scheduler in one request.
         [HttpPatch("scheduler-config/enable")]
-        public async Task<IActionResult> EnableScheduler()
+        public async Task<IActionResult> EnableScheduler(
+            [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] SchedulerConfigRequest? request = null)
         {
-            var result = await _adminService.SetSchedulerEnabledAsync(true);
+            request ??= new SchedulerConfigRequest();
+            request.Enabled = true;
+
+            var result = await _adminService.UpdateSchedulerConfigAsync(request);
             if (!result.Success)
                 return BadRequest(result);
 

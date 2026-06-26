@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using SWP391.Models.Papers;
 using SWP391.Service;
 
 namespace SWP391.Controllers
@@ -14,19 +15,41 @@ namespace SWP391.Controllers
             _paperService = paperService;
         }
 
-        // API Tìm kiếm bài báo: hỗ trợ tìm theo keyword, author, journal và hỗ trợ phân trang (pagination)
         [HttpGet]
-        public async Task<IActionResult> SearchPapers([FromQuery] string? keyword, [FromQuery] string? author, [FromQuery] string? journal, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        public async Task<IActionResult> SearchPapers([FromQuery] PaperSearchRequest request)
         {
-            // Validate phân trang cơ bản tránh dữ liệu xấu (page <= 0 sẽ default về 1)
-            if (page <= 0) page = 1;
-            if (pageSize <= 0 || pageSize > 100) pageSize = 10;
-
-            var result = await _paperService.SearchPapersAsync(keyword, author, journal, page, pageSize);
+            var result = await _paperService.SearchPapersAsync(request);
             return Ok(result);
         }
 
-        // API Xem chi tiết bài báo theo ID trên DB (Trả ra cả Title, Abstract, Tác giả, và tạp chí)
+        [HttpGet("facets/authors")]
+        public async Task<IActionResult> GetAuthorFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetAuthorFacetsAsync(q, page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("facets/keywords")]
+        public async Task<IActionResult> GetKeywordFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetKeywordFacetsAsync(q, page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("facets/topics")]
+        public async Task<IActionResult> GetTopicFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetTopicFacetsAsync(q, page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("facets/journals")]
+        public async Task<IActionResult> GetJournalFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetJournalFacetsAsync(q, page, pageSize);
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         public async Task<IActionResult> GetPaperDetails(long id)
         {
@@ -35,6 +58,7 @@ namespace SWP391.Controllers
             {
                 return NotFound(result);
             }
+
             return Ok(result);
         }
     }

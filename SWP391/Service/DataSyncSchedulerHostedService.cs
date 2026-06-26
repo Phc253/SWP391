@@ -56,7 +56,15 @@ namespace SWP391.Service
                 using var scope = _scopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ScientificTrendDbContext>();
 
-                var keys = new[] { "DataSync:Enabled", "DataSync:Keyword", "DataSync:MaxResults", "DataSync:IntervalHours" };
+                var keys = new[]
+                {
+                    "DataSync:Enabled",
+                    "DataSync:Keyword",
+                    "DataSync:MaxResults",
+                    "DataSync:IntervalHours",
+                    "DataSync:FetchNewWorksEnabled",
+                    "DataSync:RefreshExistingWorksEnabled"
+                };
                 var settingsList = await dbContext.SystemSettings
                     .Where(s => keys.Contains(s.SettingKey))
                     .AsNoTracking()
@@ -80,12 +88,22 @@ namespace SWP391.Service
                 if (settings.TryGetValue("DataSync:IntervalHours", out var ihStr) && int.TryParse(ihStr, out var ihVal))
                     intervalHours = ihVal;
 
+                bool fetchNewWorksEnabled = _options.FetchNewWorksEnabled;
+                if (settings.TryGetValue("DataSync:FetchNewWorksEnabled", out var fetchStr) && bool.TryParse(fetchStr, out var fetchVal))
+                    fetchNewWorksEnabled = fetchVal;
+
+                bool refreshExistingWorksEnabled = _options.RefreshExistingWorksEnabled;
+                if (settings.TryGetValue("DataSync:RefreshExistingWorksEnabled", out var refreshStr) && bool.TryParse(refreshStr, out var refreshVal))
+                    refreshExistingWorksEnabled = refreshVal;
+
                 return new DataSyncSchedulerOptions
                 {
-                    Enabled       = enabled,
-                    Keyword       = keyword,
-                    MaxResults    = maxResults,
-                    IntervalHours = intervalHours
+                    Enabled = enabled,
+                    Keyword = keyword,
+                    MaxResults = maxResults,
+                    IntervalHours = intervalHours,
+                    FetchNewWorksEnabled = fetchNewWorksEnabled,
+                    RefreshExistingWorksEnabled = refreshExistingWorksEnabled
                 };
             }
             catch (Exception ex)
@@ -103,30 +121,61 @@ namespace SWP391.Service
             effective ??= _options;
 
             _logger.LogInformation(
-                "Running scheduled OpenAlex sync. Keyword={Keyword}, MaxResults={MaxResults}.",
+                "Running scheduled OpenAlex jobs. Keyword={Keyword}, MaxResults={MaxResults}, FetchNewWorksEnabled={FetchNewWorksEnabled}, RefreshExistingWorksEnabled={RefreshExistingWorksEnabled}.",
                 effective.GetKeyword(),
-                effective.GetMaxResults());
+                effective.GetMaxResults(),
+                effective.FetchNewWorksEnabled,
+                effective.RefreshExistingWorksEnabled);
 
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var dataSyncService = scope.ServiceProvider.GetRequiredService<DataSyncService>();
 
-                var result = await dataSyncService.SyncOpenAlexAsync(
-                    effective.GetKeyword(),
-                    effective.GetMaxResults());
-
-                if (!result.Success)
+                if (!effective.FetchNewWorksEnabled && !effective.RefreshExistingWorksEnabled)
                 {
-                    _logger.LogWarning("Scheduled OpenAlex sync failed: {Error}", result.Error);
+                    _logger.LogWarning("Scheduled OpenAlex jobs skipped because both fetch and refresh are disabled.");
                     return;
                 }
 
-                _logger.LogInformation(
-                    "Scheduled OpenAlex sync completed. SyncJobId={SyncJobId}, RecordsFetched={RecordsFetched}, Status={Status}.",
-                    result.Data?.SyncJobId,
-                    result.Data?.RecordsFetched,
-                    result.Data?.Status);
+                if (effective.FetchNewWorksEnabled)
+                {
+                    var fetchResult = await dataSyncService.FetchOpenAlexAsync(
+                        effective.GetKeyword(),
+                        effective.GetMaxResults(),
+                        useFetchCheckpoint: true);
+
+                    if (!fetchResult.Success)
+                    {
+                        _logger.LogWarning("Scheduled OpenAlex fetch failed: {Error}", fetchResult.Error);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Scheduled OpenAlex fetch completed. SyncJobId={SyncJobId}, RecordsInserted={RecordsInserted}, Status={Status}.",
+                            fetchResult.Data?.SyncJobId,
+                            fetchResult.Data?.RecordsInserted,
+                            fetchResult.Data?.Status);
+                    }
+                }
+
+                if (effective.RefreshExistingWorksEnabled)
+                {
+                    var syncResult = await dataSyncService.SyncOpenAlexAsync(effective.GetMaxResults());
+
+                    if (!syncResult.Success)
+                    {
+                        _logger.LogWarning("Scheduled OpenAlex sync failed: {Error}", syncResult.Error);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "Scheduled OpenAlex sync completed. SyncJobId={SyncJobId}, RecordsUpdated={RecordsUpdated}, Status={Status}.",
+                            syncResult.Data?.SyncJobId,
+                            syncResult.Data?.RecordsUpdated,
+                            syncResult.Data?.Status);
+                    }
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -24,6 +24,9 @@ namespace SWP391.Models.Integration
         
         [JsonPropertyName("per_page")]
         public int PerPage { get; set; }
+
+        [JsonPropertyName("next_cursor")]
+        public string? NextCursor { get; set; }
     }
 
     public class WorkData
@@ -36,6 +39,12 @@ namespace SWP391.Models.Integration
 
         [JsonPropertyName("publication_year")]
         public int? PublicationYear { get; set; }
+
+        [JsonPropertyName("publication_date")]
+        public string? PublicationDate { get; set; }
+
+        [JsonPropertyName("updated_date")]
+        public string? UpdatedDate { get; set; }
 
         [JsonPropertyName("cited_by_count")]
         public int? CitationCount { get; set; }
