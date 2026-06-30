@@ -19,5 +19,12 @@ namespace SWP391.Models.Integration
         public string? ErrorMessage { get; set; }
         public int NotificationsCreated { get; set; }
         public ComputeTrendsResponse? TrendComputation { get; set; }
+
+        /// <summary>
+        /// Per-paper citation update details from the sync (refresh) run.
+        /// Each item shows which paper changed, old and new citation count, topic, and update time.
+        /// Only populated for sync-openalex (refresh) operations; empty for fetch-only operations.
+        /// </summary>
+        public List<UpdatedPaperDetail> UpdatedPapers { get; set; } = new();
     }
 }
