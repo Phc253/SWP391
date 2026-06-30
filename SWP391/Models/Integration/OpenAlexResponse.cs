@@ -15,13 +15,14 @@ namespace SWP391.Models.Integration
     {
         [JsonPropertyName("count")]
         public int Count { get; set; }
-        
+
         [JsonPropertyName("db_response_time_ms")]
         public int DbResponseTimeMs { get; set; }
-        
+
+        // OpenAlex returns null for "page" when cursor paging is used — must be nullable.
         [JsonPropertyName("page")]
-        public int Page { get; set; }
-        
+        public int? Page { get; set; }
+
         [JsonPropertyName("per_page")]
         public int PerPage { get; set; }
 
@@ -51,7 +52,7 @@ namespace SWP391.Models.Integration
 
         [JsonPropertyName("abstract_inverted_index")]
         public Dictionary<string, List<int>>? AbstractInvertedIndex { get; set; }
-        
+
         [JsonPropertyName("authorships")]
         public List<Authorship>? Authorships { get; set; }
 
@@ -105,7 +106,7 @@ namespace SWP391.Models.Integration
 
         [JsonPropertyName("display_name")]
         public string? DisplayName { get; set; }
-        
+
         [JsonPropertyName("score")]
         public float Score { get; set; }
 

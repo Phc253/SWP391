@@ -17,5 +17,11 @@ namespace SWP391.Models.Integration
         public string? NextCursor { get; set; }
 
         public List<long> NewPaperIds { get; set; } = new();
+
+        /// <summary>
+        /// Per-paper citation update details collected during a refresh run.
+        /// Only populated by RefreshExistingOpenAlexWorksAsync; empty for fetch-new-works runs.
+        /// </summary>
+        public List<UpdatedPaperDetail> UpdatedPapers { get; set; } = new();
     }
 }

@@ -14,6 +14,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using QuestPDF.Infrastructure;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
+using SWP391.Tools;
 
 namespace SWP391
 {
@@ -37,7 +39,11 @@ namespace SWP391
                             .AllowAnyMethod();
                     });
             });
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options =>
+            {
+                options.Conventions.Add(
+                    new RouteTokenTransformerConvention(new LowerCaseParameterTransformer()));
+            });
             builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -132,6 +138,7 @@ namespace SWP391
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
+                c.EnableAnnotations();
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
                     Description = "Enter token by format {token}",
@@ -154,6 +161,7 @@ namespace SWP391
                         new List<string>()
                     }
                 });
+                
             });
             var app = builder.Build();
             app.UseMiddleware<ExceptionMiddleware>();

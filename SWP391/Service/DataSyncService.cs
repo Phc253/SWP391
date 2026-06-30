@@ -179,7 +179,8 @@ namespace SWP391.Service
                     EndTime = syncJob.EndTime,
                     ErrorMessage = syncJob.ErrorMessage,
                     NotificationsCreated = notificationsCreated,
-                    TrendComputation = trendResult.Data
+                    TrendComputation = trendResult.Data,
+                    UpdatedPapers = refreshResult.UpdatedPapers
                 });
             }
             catch (Exception ex)

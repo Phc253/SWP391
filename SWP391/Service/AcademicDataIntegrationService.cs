@@ -36,6 +36,12 @@ namespace SWP391.Service
             }
         }
 
+        /// <summary>
+        /// Fetches current-year OpenAlex works sorted by citation count.
+        /// When cursor is null/empty: uses publication_year filter to scope to current year.
+        /// When cursor is provided: omits the year filter (OpenAlex does not support filter + cursor together reliably)
+        /// and continues paging from the given cursor position.
+        /// </summary>
         public async Task<DataIngestionResult> FetchOpenAlexWorksAsync(
             string keyword = "Computer Science",
             int maxResults = 40,
@@ -46,10 +52,19 @@ namespace SWP391.Service
                 maxResults = Math.Clamp(maxResults, 1, 100);
                 var currentYear = DateTime.UtcNow.Year;
                 var encodedKeyword = Uri.EscapeDataString(keyword);
-                var cursorClause = string.IsNullOrWhiteSpace(cursor)
-                    ? string.Empty
-                    : $"&cursor={Uri.EscapeDataString(cursor)}";
-                var url = $"https://api.openalex.org/works?search.title_and_abstract={encodedKeyword}&filter=publication_year:{currentYear}&sort=cited_by_count:desc&per_page={maxResults}{cursorClause}";
+
+                string url;
+                if (string.IsNullOrWhiteSpace(cursor))
+                {
+                    // First page: scope to current year so results are recent, sorted by citation desc.
+                    url = $"https://api.openalex.org/works?search={encodedKeyword}&filter=publication_year:{currentYear}&sort=cited_by_count:desc&per_page={maxResults}";
+                }
+                else
+                {
+                    // Subsequent pages via cursor: drop the year filter — OpenAlex requires cursor-only
+                    // paging without mixing page-based filters. Include cursor for continuation.
+                    url = $"https://api.openalex.org/works?search={encodedKeyword}&sort=cited_by_count:desc&per_page={maxResults}&cursor={Uri.EscapeDataString(cursor)}";
+                }
 
                 return await FetchAndProcessOpenAlexListAsync(url, keyword, refreshExistingCitation: false);
             }
@@ -60,58 +75,82 @@ namespace SWP391.Service
             }
         }
 
+        /// <summary>
+        /// Refreshes citation counts for papers already in the database by calling OpenAlex per-work endpoint.
+        /// Runs up to 5 requests concurrently to reduce wall-clock time vs. sequential fetching.
+        /// Populates UpdatedPapers in the returned result for admin display.
+        /// </summary>
         public async Task<DataIngestionResult> RefreshExistingOpenAlexWorksAsync(IEnumerable<string> externalIds)
         {
             var result = new DataIngestionResult();
             var source = await EnsureOpenAlexSourceAsync();
 
-            foreach (var externalId in externalIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct())
+            // Limit concurrency to avoid hammering OpenAlex (polite client behaviour).
+            var semaphore = new SemaphoreSlim(5, 5);
+            var idList = externalIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct().ToList();
+
+            var tasks = idList.Select(async externalId =>
             {
+                await semaphore.WaitAsync();
                 try
                 {
                     var workId = GetOpenAlexWorkIdForPath(externalId);
                     if (string.IsNullOrWhiteSpace(workId))
-                    {
-                        continue;
-                    }
+                        return (DataIngestionResult?)null;
 
                     var url = $"https://api.openalex.org/works/{Uri.EscapeDataString(workId)}";
                     var response = await _httpClient.GetAsync(url);
                     var content = await response.Content.ReadAsStringAsync();
+
                     if (!response.IsSuccessStatusCode)
                     {
                         _logger.LogWarning(
                             "OpenAlex refresh failed. Url={Url} ExternalId={ExternalId} Status={Status} Body={Body}",
-                            url,
-                            externalId,
-                            response.StatusCode,
-                            content);
-                        continue;
+                            url, externalId, response.StatusCode, content);
+                        return (DataIngestionResult?)null;
                     }
 
                     var work = JsonSerializer.Deserialize<WorkData>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     if (work == null)
-                    {
-                        continue;
-                    }
+                        return (DataIngestionResult?)null;
 
-                    result.FetchedCount++;
-                    var processed = await ProcessWorkAsync(work, source, refreshExistingCitation: true);
+                    var partial = new DataIngestionResult { FetchedCount = 1 };
+                    var processed = await ProcessWorkAsync(work, source, refreshExistingCitation: true, partial);
+
                     if (processed.NewPaperId.HasValue)
                     {
-                        result.NewPaperIds.Add(processed.NewPaperId.Value);
-                        result.SavedCount++;
+                        partial.NewPaperIds.Add(processed.NewPaperId.Value);
+                        partial.SavedCount++;
                     }
 
                     if (processed.UpdatedExisting)
                     {
-                        result.UpdatedCount++;
+                        partial.UpdatedCount++;
                     }
+
+                    return (DataIngestionResult?)partial;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "Error refreshing OpenAlex work ExternalId={ExternalId}; skipping", externalId);
+                    return (DataIngestionResult?)null;
                 }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
+
+            var partials = await Task.WhenAll(tasks);
+
+            // Merge all partial results into a single result.
+            foreach (var partial in partials.Where(p => p != null))
+            {
+                result.FetchedCount += partial!.FetchedCount;
+                result.SavedCount += partial.SavedCount;
+                result.UpdatedCount += partial.UpdatedCount;
+                result.NewPaperIds.AddRange(partial.NewPaperIds);
+                result.UpdatedPapers.AddRange(partial.UpdatedPapers);
             }
 
             return result;
@@ -178,9 +217,7 @@ namespace SWP391.Service
             {
                 _logger.LogError(
                     "OpenAlex API failed. Url={Url} Status={Status} Body={Body}",
-                    url,
-                    response.StatusCode,
-                    content);
+                    url, response.StatusCode, content);
                 return new DataIngestionResult();
             }
 
@@ -205,7 +242,7 @@ namespace SWP391.Service
 
             foreach (var work in data.Results)
             {
-                var processed = await ProcessWorkAsync(work, source, refreshExistingCitation);
+                var processed = await ProcessWorkAsync(work, source, refreshExistingCitation, result);
                 if (processed.NewPaperId.HasValue)
                 {
                     result.NewPaperIds.Add(processed.NewPaperId.Value);
@@ -240,25 +277,55 @@ namespace SWP391.Service
         }
 
         // Processes a single OpenAlex work: deduplicates, creates journal/authors/keywords, saves paper.
+        // When refreshExistingCitation=true and the paper already exists with a different citation count,
+        // records an UpdatedPaperDetail into ingestionResult.UpdatedPapers.
         private async Task<ProcessedWorkResult> ProcessWorkAsync(
             WorkData work,
             ApiDataSource source,
-            bool refreshExistingCitation)
+            bool refreshExistingCitation,
+            DataIngestionResult? ingestionResult = null)
         {
             if (string.IsNullOrWhiteSpace(work.Title))
                 return new ProcessedWorkResult();
 
-            var existingPaper = await _dbContext.Papers.FirstOrDefaultAsync(p => p.ExternalId == work.Id);
+            var existingPaper = await _dbContext.Papers
+                .Include(p => p.Keywords)
+                    .ThenInclude(k => k.Topic)
+                .FirstOrDefaultAsync(p => p.ExternalId == work.Id);
+
             if (existingPaper != null)
             {
                 if (refreshExistingCitation &&
                     work.CitationCount is int citationCount &&
                     existingPaper.CitationCount != citationCount)
                 {
+                    var oldCitation = existingPaper.CitationCount ?? 0;
                     existingPaper.CitationCount = citationCount;
                     await _dbContext.SaveChangesAsync();
 
-                    _logger.LogDebug("Updated citation count for existing paper ExternalId={ExternalId} Title={Title}", work.Id, work.Title);
+                    _logger.LogDebug(
+                        "Updated citation for PaperId={PaperId} ExternalId={ExternalId} Title={Title} {Old}->{New}",
+                        existingPaper.PaperId, work.Id, work.Title, oldCitation, citationCount);
+
+                    // Collect update detail for admin response display.
+                    if (ingestionResult != null)
+                    {
+                        var topicName = existingPaper.Keywords
+                            .Where(k => k.Topic != null)
+                            .Select(k => k.Topic!.TopicName)
+                            .FirstOrDefault();
+
+                        ingestionResult.UpdatedPapers.Add(new UpdatedPaperDetail
+                        {
+                            PaperId = existingPaper.PaperId,
+                            Title = existingPaper.Title ?? work.Title,
+                            OldCitationCount = oldCitation,
+                            NewCitationCount = citationCount,
+                            TopicName = topicName,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
+
                     return new ProcessedWorkResult { UpdatedExisting = true };
                 }
 
