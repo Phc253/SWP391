@@ -24,6 +24,12 @@ namespace SWP391.Repositories
             _dbContext = dbContext;
         }
 
+        public async Task<string?> GetTopicNameByIdAsync(int topicId)
+        {
+            var topic = await _dbContext.ResearchTopics.FindAsync(topicId);
+            return topic?.TopicName;
+        }
+
         public async Task<Keyword?> GetKeywordByIdAsync(int keywordId)
         {
             return await _dbContext.Keywords.FindAsync(keywordId);
