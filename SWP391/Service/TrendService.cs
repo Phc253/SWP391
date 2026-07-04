@@ -44,11 +44,18 @@ namespace SWP391.Service
             }
         }
 
-        public async Task<ServiceResult<List<TrendChartResponse>>> GetTopicTrendAsync(string topicName)
+        public async Task<ServiceResult<List<TrendChartResponse>>> GetTopicTrendAsync(int? topicId, string? topicName)
         {
             try
             {
-                var data = await _trendRepository.GetTrendByTopicAsync(topicName);
+                if (topicId.HasValue)
+                {
+                    var resolved = await _trendRepository.GetTopicNameByIdAsync(topicId.Value);
+                    if (resolved == null)
+                        return ServiceResult<List<TrendChartResponse>>.Fail($"Topic with ID {topicId} not found.");
+                    topicName = resolved;
+                }
+                var data = await _trendRepository.GetTrendByTopicAsync(topicName!);
                 if (!data.Any())
                     return ServiceResult<List<TrendChartResponse>>.Fail("No data found for this topic. It might not exist or has no papers.");
                 return ServiceResult<List<TrendChartResponse>>.Ok(data);
@@ -78,13 +85,20 @@ namespace SWP391.Service
             }
         }
 
-        public async Task<ServiceResult<TopicGrowthResponse>> GetTopicGrowthAsync(string topicName, int years = 5)
+        public async Task<ServiceResult<TopicGrowthResponse>> GetTopicGrowthAsync(int? topicId, string? topicName, int years = 5)
         {
             try
             {
+                if (topicId.HasValue)
+                {
+                    var resolved = await _trendRepository.GetTopicNameByIdAsync(topicId.Value);
+                    if (resolved == null)
+                        return ServiceResult<TopicGrowthResponse>.Fail($"Topic with ID {topicId} not found.");
+                    topicName = resolved;
+                }
                 if (years < 1 || years > 50)
                     return ServiceResult<TopicGrowthResponse>.Fail("Years must be between 1 and 50.");
-                var rawData = await _trendRepository.GetRawYearlyCountByTopicAsync(topicName, years);
+                var rawData = await _trendRepository.GetRawYearlyCountByTopicAsync(topicName!, years);
                 return ServiceResult<TopicGrowthResponse>.Ok(new TopicGrowthResponse
                 {
                     TopicName = topicName,
@@ -300,15 +314,20 @@ namespace SWP391.Service
             }
         }
 
-        public async Task<ServiceResult<List<TrendSnapshotResponse>>> GetTopicSnapshotHistoryAsync(string topicName, int days = 30)
+        public async Task<ServiceResult<List<TrendSnapshotResponse>>> GetTopicSnapshotHistoryAsync(int? topicId, string? topicName, int days = 30)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(topicName))
-                    return ServiceResult<List<TrendSnapshotResponse>>.Fail("Topic name is required.");
+                if (topicId.HasValue)
+                {
+                    var resolved = await _trendRepository.GetTopicNameByIdAsync(topicId.Value);
+                    if (resolved == null)
+                        return ServiceResult<List<TrendSnapshotResponse>>.Fail($"Topic with ID {topicId} not found.");
+                    topicName = resolved;
+                }
                 if (days < 1 || days > 365)
                     return ServiceResult<List<TrendSnapshotResponse>>.Fail("Days must be between 1 and 365.");
-                var data = await _trendRepository.GetSnapshotHistoryByTopicAsync(topicName, days);
+                var data = await _trendRepository.GetSnapshotHistoryByTopicAsync(topicName!, days);
                 return ServiceResult<List<TrendSnapshotResponse>>.Ok(data);
             }
             catch (Exception ex)

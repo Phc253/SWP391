@@ -32,10 +32,11 @@ namespace SWP391.Controllers
         }
 
         [HttpGet("topic")]
-        public async Task<IActionResult> GetTopicTrend([FromQuery] string topicName)
+        public async Task<IActionResult> GetTopicTrend([FromQuery] int? topicId, [FromQuery] string? topicName)
         {
-            if (string.IsNullOrWhiteSpace(topicName)) return BadRequest("Topic name is required.");
-            var result = await _trendService.GetTopicTrendAsync(topicName);
+            if (!topicId.HasValue && string.IsNullOrWhiteSpace(topicName))
+                return BadRequest("Either topicId or topicName is required.");
+            var result = await _trendService.GetTopicTrendAsync(topicId, topicName);
             return result.Success ? Ok(result.Data) : BadRequest(result);
         }
 
@@ -48,10 +49,11 @@ namespace SWP391.Controllers
         }
 
         [HttpGet("topic-growth")]
-        public async Task<IActionResult> GetTopicGrowth([FromQuery] string topicName, [FromQuery] int years = 5)
+        public async Task<IActionResult> GetTopicGrowth([FromQuery] int? topicId, [FromQuery] string? topicName, [FromQuery] int years = 5)
         {
-            if (string.IsNullOrWhiteSpace(topicName)) return BadRequest("Topic name is required.");
-            var result = await _trendService.GetTopicGrowthAsync(topicName, years);
+            if (!topicId.HasValue && string.IsNullOrWhiteSpace(topicName))
+                return BadRequest("Either topicId or topicName is required.");
+            var result = await _trendService.GetTopicGrowthAsync(topicId, topicName, years);
             return result.Success ? Ok(result.Data) : BadRequest(result);
         }
 
@@ -107,10 +109,11 @@ namespace SWP391.Controllers
         }
 
         [HttpGet("topic-snapshot-history")]
-        public async Task<IActionResult> GetTopicSnapshotHistory([FromQuery] string topicName, [FromQuery] int days = 30)
+        public async Task<IActionResult> GetTopicSnapshotHistory([FromQuery] int? topicId, [FromQuery] string? topicName, [FromQuery] int days = 30)
         {
-            if (string.IsNullOrWhiteSpace(topicName)) return BadRequest("topicName is required.");
-            var result = await _trendService.GetTopicSnapshotHistoryAsync(topicName, days);
+            if (!topicId.HasValue && string.IsNullOrWhiteSpace(topicName))
+                return BadRequest("Either topicId or topicName is required.");
+            var result = await _trendService.GetTopicSnapshotHistoryAsync(topicId, topicName, days);
             return result.Success ? Ok(result.Data) : BadRequest(result);
         }
     }
