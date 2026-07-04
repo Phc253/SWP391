@@ -1,6 +1,7 @@
 using SWP391.Models;
 using SWP391.Models.Papers;
 using SWP391.Repositories;
+using SWP391.Entities;
 
 namespace SWP391.Service
 {
@@ -13,7 +14,7 @@ namespace SWP391.Service
             _paperRepository = paperRepository;
         }
 
-        public Task<ServiceResult<object>> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize)
+        public Task<ServiceResult<PaperListResponse>> SearchPapersAsync(string? keyword, string? author, string? journal, int page, int pageSize)
         {
             return SearchPapersAsync(new PaperSearchRequest
             {
@@ -25,30 +26,15 @@ namespace SWP391.Service
             });
         }
 
-        public async Task<ServiceResult<object>> SearchPapersAsync(PaperSearchRequest request)
+        public async Task<ServiceResult<PaperListResponse>> SearchPapersAsync(PaperSearchRequest request)
         {
             NormalizePaging(request);
 
             var (papers, totalCount) = await _paperRepository.SearchPapersAsync(request);
 
-            var result = new
-            {
-                TotalCount = totalCount,
-                Page = request.Page,
-                PageSize = request.PageSize,
-                Items = papers.Select(p => new
-                {
-                    p.PaperId,
-                    p.Title,
-                    p.PublicationYear,
-                    p.CitationCount,
-                    Journal = p.Journal?.JournalName,
-                    Authors = p.Authors.Select(a => a.AuthorName).ToList(),
-                    Keywords = p.Keywords.Select(k => k.KeywordText).ToList()
-                })
-            };
+            var result = ToPaperListResponse(papers, totalCount, request.Page, request.PageSize);
 
-            return ServiceResult<object>.Ok(result);
+            return ServiceResult<PaperListResponse>.Ok(result);
         }
 
         public async Task<ServiceResult<PaperFacetResponse>> GetAuthorFacetsAsync(string? q, int page, int pageSize)
@@ -77,6 +63,50 @@ namespace SWP391.Service
             NormalizePaging(ref page, ref pageSize);
             var response = await _paperRepository.GetJournalFacetsAsync(q, page, pageSize);
             return ServiceResult<PaperFacetResponse>.Ok(response);
+        }
+
+        public async Task<ServiceResult<PaperListResponse>> GetPapersByTopicAsync(int topicId, int page, int pageSize)
+        {
+            if (topicId <= 0)
+            {
+                return ServiceResult<PaperListResponse>.Fail("Topic id must be greater than 0");
+            }
+
+            NormalizePaging(ref page, ref pageSize);
+
+            var request = new PaperSearchRequest
+            {
+                TopicIds = new List<int> { topicId },
+                Page = page,
+                PageSize = pageSize
+            };
+
+            var (papers, totalCount) = await _paperRepository.SearchPapersAsync(request);
+            var response = ToPaperListResponse(papers, totalCount, page, pageSize);
+
+            return ServiceResult<PaperListResponse>.Ok(response);
+        }
+
+        public async Task<ServiceResult<PaperListResponse>> GetPapersByJournalAsync(int journalId, int page, int pageSize)
+        {
+            if (journalId <= 0)
+            {
+                return ServiceResult<PaperListResponse>.Fail("Journal id must be greater than 0");
+            }
+
+            NormalizePaging(ref page, ref pageSize);
+
+            var request = new PaperSearchRequest
+            {
+                JournalIds = new List<int> { journalId },
+                Page = page,
+                PageSize = pageSize
+            };
+
+            var (papers, totalCount) = await _paperRepository.SearchPapersAsync(request);
+            var response = ToPaperListResponse(papers, totalCount, page, pageSize);
+
+            return ServiceResult<PaperListResponse>.Ok(response);
         }
 
         public async Task<ServiceResult<object>> GetPaperDetailsAsync(long id)
@@ -112,6 +142,30 @@ namespace SWP391.Service
         {
             page = Math.Max(1, page);
             pageSize = Math.Clamp(pageSize, 1, 100);
+        }
+
+        private static PaperListResponse ToPaperListResponse(List<Paper> papers, int totalCount, int page, int pageSize)
+        {
+            return new PaperListResponse
+            {
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                Items = papers.Select(p => new PaperListItemResponse
+                {
+                    PaperId = p.PaperId,
+                    Title = p.Title,
+                    PublicationYear = p.PublicationYear,
+                    CitationCount = p.CitationCount,
+                    Journal = p.Journal?.JournalName,
+                    Authors = p.Authors
+                        .Select(a => a.AuthorName ?? string.Empty)
+                        .ToList(),
+                    Keywords = p.Keywords
+                        .Select(k => k.KeywordText ?? string.Empty)
+                        .ToList()
+                }).ToList()
+            };
         }
     }
 }

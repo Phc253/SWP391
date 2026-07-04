@@ -27,7 +27,7 @@ namespace SWP391.Controllers
             return Ok(result.Data);
         }
 
-        // Manual fetch-only trigger. Fetches current-year OpenAlex works sorted by citation count.
+        // Manual fetch-only trigger. Fetches OpenAlex works by title/abstract search sorted by citation count.
         [HttpPost("/api/fetchdata/openalex")]
         public async Task<IActionResult> FetchOpenAlex(
             string keyword = "Computer Science",

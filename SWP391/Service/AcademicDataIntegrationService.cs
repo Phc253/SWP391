@@ -10,13 +10,19 @@ namespace SWP391.Service
         private readonly HttpClient _httpClient;
         private readonly ScientificTrendDbContext _dbContext;
         private readonly ILogger<AcademicDataIntegrationService> _logger;
+        private readonly string? _openAlexApiKey;
 
-        public AcademicDataIntegrationService(HttpClient httpClient, ScientificTrendDbContext dbContext, ILogger<AcademicDataIntegrationService> logger)
+        public AcademicDataIntegrationService(
+            HttpClient httpClient,
+            ScientificTrendDbContext dbContext,
+            ILogger<AcademicDataIntegrationService> logger,
+            IConfiguration configuration)
         {
             _httpClient = httpClient;
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "ScientificTrendTracker/1.0 (mailto:admin@example.com)");
             _dbContext = dbContext;
             _logger = logger;
+            _openAlexApiKey = configuration["OpenAlex:ApiKey"];
         }
 
         public async Task<DataIngestionResult> FetchAndSaveDataFromOpenAlexAsync(string keyword = "Computer Science", int maxResults = 40)
@@ -25,7 +31,7 @@ namespace SWP391.Service
             {
                 maxResults = Math.Clamp(maxResults, 1, 100);
                 var encodedKeyword = Uri.EscapeDataString(keyword);
-                var url = $"https://api.openalex.org/works?search={encodedKeyword}&per_page={maxResults}";
+                var url = AddOpenAlexApiKey($"https://api.openalex.org/works?search={encodedKeyword}&per_page={maxResults}");
 
                 return await FetchAndProcessOpenAlexListAsync(url, keyword, refreshExistingCitation: true);
             }
@@ -37,10 +43,9 @@ namespace SWP391.Service
         }
 
         /// <summary>
-        /// Fetches current-year OpenAlex works sorted by citation count.
-        /// When cursor is null/empty: uses publication_year filter to scope to current year.
-        /// When cursor is provided: omits the year filter (OpenAlex does not support filter + cursor together reliably)
-        /// and continues paging from the given cursor position.
+        /// Fetches OpenAlex works by matching the keyword against title and abstract,
+        /// sorted by citation count descending. This mirrors OpenAlex web search URLs like
+        /// /works?search.title_and_abstract={keyword}&sort=cited_by_count:desc.
         /// </summary>
         public async Task<DataIngestionResult> FetchOpenAlexWorksAsync(
             string keyword = "Computer Science",
@@ -50,23 +55,15 @@ namespace SWP391.Service
             try
             {
                 maxResults = Math.Clamp(maxResults, 1, 100);
-                var currentYear = DateTime.UtcNow.Year;
                 var encodedKeyword = Uri.EscapeDataString(keyword);
 
-                string url;
-                if (string.IsNullOrWhiteSpace(cursor))
+                var url = $"https://api.openalex.org/works?search.title_and_abstract={encodedKeyword}&sort=cited_by_count:desc&per_page={maxResults}";
+                if (!string.IsNullOrWhiteSpace(cursor))
                 {
-                    // First page: scope to current year so results are recent, sorted by citation desc.
-                    url = $"https://api.openalex.org/works?search={encodedKeyword}&filter=publication_year:{currentYear}&sort=cited_by_count:desc&per_page={maxResults}";
-                }
-                else
-                {
-                    // Subsequent pages via cursor: drop the year filter — OpenAlex requires cursor-only
-                    // paging without mixing page-based filters. Include cursor for continuation.
-                    url = $"https://api.openalex.org/works?search={encodedKeyword}&sort=cited_by_count:desc&per_page={maxResults}&cursor={Uri.EscapeDataString(cursor)}";
+                    url += $"&cursor={Uri.EscapeDataString(cursor)}";
                 }
 
-                return await FetchAndProcessOpenAlexListAsync(url, keyword, refreshExistingCitation: false);
+                return await FetchAndProcessOpenAlexListAsync(AddOpenAlexApiKey(url), keyword, refreshExistingCitation: false);
             }
             catch (Exception ex)
             {
@@ -98,7 +95,7 @@ namespace SWP391.Service
                     if (string.IsNullOrWhiteSpace(workId))
                         return (DataIngestionResult?)null;
 
-                    var url = $"https://api.openalex.org/works/{Uri.EscapeDataString(workId)}";
+                    var url = AddOpenAlexApiKey($"https://api.openalex.org/works/{Uri.EscapeDataString(workId)}");
                     var response = await _httpClient.GetAsync(url);
                     var content = await response.Content.ReadAsStringAsync();
 
@@ -106,7 +103,7 @@ namespace SWP391.Service
                     {
                         _logger.LogWarning(
                             "OpenAlex refresh failed. Url={Url} ExternalId={ExternalId} Status={Status} Body={Body}",
-                            url, externalId, response.StatusCode, content);
+                            SanitizeOpenAlexUrl(url), externalId, response.StatusCode, content);
                         return (DataIngestionResult?)null;
                     }
 
@@ -176,7 +173,7 @@ namespace SWP391.Service
                     string filterClause = (yearFrom.HasValue && yearTo.HasValue)
                         ? $"&filter=publication_year:{yearFrom}-{yearTo}"
                         : string.Empty;
-                    var url = $"https://api.openalex.org/works?search={encodedKeyword}{filterClause}&per_page={maxResultsPerKeyword}";
+                    var url = AddOpenAlexApiKey($"https://api.openalex.org/works?search={encodedKeyword}{filterClause}&per_page={maxResultsPerKeyword}");
 
                     var response = await _httpClient.GetAsync(url);
                     if (!response.IsSuccessStatusCode)
@@ -217,11 +214,11 @@ namespace SWP391.Service
             {
                 _logger.LogError(
                     "OpenAlex API failed. Url={Url} Status={Status} Body={Body}",
-                    url, response.StatusCode, content);
+                    SanitizeOpenAlexUrl(url), response.StatusCode, content);
                 return new DataIngestionResult();
             }
 
-            _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", url, response.StatusCode);
+            _logger.LogInformation("OpenAlex API call succeeded. Url={Url} Status={Status}.", SanitizeOpenAlexUrl(url), response.StatusCode);
 
             var data = JsonSerializer.Deserialize<OpenAlexResponse>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -440,6 +437,32 @@ namespace SWP391.Service
             }
 
             return trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? trimmed;
+        }
+
+        private string AddOpenAlexApiKey(string url)
+        {
+            if (string.IsNullOrWhiteSpace(_openAlexApiKey))
+                return url;
+
+            var separator = url.Contains('?') ? '&' : '?';
+            return $"{url}{separator}api_key={Uri.EscapeDataString(_openAlexApiKey)}";
+        }
+
+        private static string SanitizeOpenAlexUrl(string url)
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                return url;
+
+            var queryParts = uri.Query.TrimStart('?')
+                .Split('&', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.StartsWith("api_key=", StringComparison.OrdinalIgnoreCase) ? "api_key=***" : part);
+
+            var builder = new UriBuilder(uri)
+            {
+                Query = string.Join("&", queryParts)
+            };
+
+            return builder.Uri.ToString();
         }
 
         // Decodes OpenAlex abstract_inverted_index (word → position list) back into plain text.
