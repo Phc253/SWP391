@@ -12,6 +12,8 @@ namespace SWP391.Service
         private const string RefreshLastPaperIdKey = "DataSync:RefreshLastPaperId";
         private const string FetchNextCursorKey = "DataSync:FetchNextCursor";
         private const string FetchCursorKeywordKey = "DataSync:FetchCursorKeyword";
+        private const string FetchCursorModeKey = "DataSync:FetchCursorMode";
+        private const string FetchCursorMode = "TitleAbstractCitationDescV1";
 
         private readonly ScientificTrendDbContext _dbContext;
         private readonly AcademicDataIntegrationService _integrationService;
@@ -206,12 +208,15 @@ namespace SWP391.Service
         private async Task<DataIngestionResult> FetchOpenAlexWithCheckpointAsync(string keyword, int maxResults)
         {
             var storedKeyword = await GetStringSettingAsync(FetchCursorKeywordKey);
+            var storedMode = await GetStringSettingAsync(FetchCursorModeKey);
             var cursor = await GetStringSettingAsync(FetchNextCursorKey);
 
-            if (!string.Equals(storedKeyword, keyword, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(storedKeyword, keyword, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(storedMode, FetchCursorMode, StringComparison.Ordinal))
             {
                 cursor = "*";
                 await UpsertSettingAsync(FetchCursorKeywordKey, keyword);
+                await UpsertSettingAsync(FetchCursorModeKey, FetchCursorMode);
             }
 
             if (string.IsNullOrWhiteSpace(cursor))
@@ -221,6 +226,7 @@ namespace SWP391.Service
 
             var result = await _integrationService.FetchOpenAlexWorksAsync(keyword, maxResults, cursor);
             await UpsertSettingAsync(FetchCursorKeywordKey, keyword);
+            await UpsertSettingAsync(FetchCursorModeKey, FetchCursorMode);
             await UpsertSettingAsync(
                 FetchNextCursorKey,
                 string.IsNullOrWhiteSpace(result.NextCursor) ? "*" : result.NextCursor);

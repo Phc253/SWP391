@@ -43,10 +43,34 @@ namespace SWP391.Controllers
             return Ok(result);
         }
 
+        [HttpGet("facets/topics/{topicId:int}/papers")]
+        public async Task<IActionResult> GetPapersByTopic(int topicId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetPapersByTopicAsync(topicId, page, pageSize);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
         [HttpGet("facets/journals")]
         public async Task<IActionResult> GetJournalFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var result = await _paperService.GetJournalFacetsAsync(q, page, pageSize);
+            return Ok(result);
+        }
+
+        [HttpGet("facets/journals/{journalId:int}/papers")]
+        public async Task<IActionResult> GetPapersByJournal(int journalId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetPapersByJournalAsync(journalId, page, pageSize);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
             return Ok(result);
         }
 
