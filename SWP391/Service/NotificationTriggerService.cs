@@ -60,8 +60,18 @@ namespace SWP391.Service
                 .Distinct()
                 .ToList();
 
+            var keywordIds = papers
+                .SelectMany(p => p.Keywords)
+                .Select(k => (long)k.KeywordId)
+                .Distinct()
+                .ToList();
+
             var journalFollows = journalIds.Any()
                 ? await _followRepository.GetFollowsByTargetIdsAsync("Journal", journalIds)
+                : new List<Follow>();
+
+            var keywordFollows = keywordIds.Any()
+                ? await _followRepository.GetFollowsByTargetIdsAsync("Keyword", keywordIds)
                 : new List<Follow>();
 
             var topicFollows = topicIds.Any()
@@ -78,6 +88,11 @@ namespace SWP391.Service
                 .GroupBy(f => f.TargetId!.Value)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            var keywordFollowsByTarget = keywordFollows
+                .Where(f => f.TargetId.HasValue && f.UserId.HasValue)
+                .GroupBy(f => f.TargetId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             var candidates = new Dictionary<(int UserId, long PaperId), PaperNotificationCandidate>();
 
             foreach (var paper in papers)
@@ -89,6 +104,20 @@ namespace SWP391.Service
                     foreach (var follow in matchedJournalFollows)
                     {
                         AddMatch(candidates, follow.UserId!.Value, paper, $"journal \"{journalName}\"");
+                    }
+                }
+
+                foreach (var keyword in paper.Keywords)
+                {
+                    if (!keywordFollowsByTarget.TryGetValue(keyword.KeywordId, out var matchedKeywordFollows))
+                    {
+                        continue;
+                    }
+
+                    var keywordText = keyword.KeywordText ?? "unknown keyword";
+                    foreach (var follow in matchedKeywordFollows)
+                    {
+                        AddMatch(candidates, follow.UserId!.Value, paper, $"keyword \"{keywordText}\"");
                     }
                 }
 

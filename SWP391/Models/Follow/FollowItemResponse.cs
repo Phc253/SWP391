@@ -14,6 +14,7 @@ namespace SWP391.Models.Follow
         public int? PaperCount { get; set; }
 
         public string? JournalName { get; set; }
+        public string? KeywordText { get; set; }
         public string? TopicName { get; set; }
     }
 }

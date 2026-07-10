@@ -100,6 +100,8 @@ namespace SWP391
                 options.AddPolicy("CanPublishArticle", policy => policy.RequireRole("Administrator", "Researcher"));
                 
                 options.AddPolicy("IsMember", policy => policy.RequireRole("Administrator", "Researcher", "Member"));
+
+                options.AddPolicy("CanUseResearcherAnalytics", policy => policy.RequireRole("Administrator", "Researcher"));
             });
             builder.Services.AddDbContext<ScientificTrendDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -129,6 +131,8 @@ namespace SWP391
             builder.Services.AddScoped<AuthorService>();
             builder.Services.AddScoped<FollowRepository>();
             builder.Services.AddScoped<FollowService>();
+            builder.Services.AddScoped<ResearcherRepository>();
+            builder.Services.AddScoped<ResearcherService>();
             builder.Services.AddScoped<ActivityLogRepository>();
             builder.Services.AddScoped<ActivityLogService>();
             builder.Services.AddHostedService<TrendComputeBackgroundService>();
