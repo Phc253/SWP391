@@ -27,7 +27,7 @@ namespace SWP391.Service
         {
             if (string.IsNullOrWhiteSpace(request.TargetType))
             {
-                return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Author', 'Journal', 'ResearchTopic').");
+                return ServiceResult<bool>.Fail("TargetType is required (e.g., 'Author', 'Keyword', 'Journal', 'ResearchTopic').");
             }
 
             var type = NormalizeTargetType(request.TargetType);
@@ -39,6 +39,14 @@ namespace SWP391.Service
                 if (author == null)
                 {
                     return ServiceResult<bool>.Fail("Author not found.");
+                }
+            }
+            else if (type.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+            {
+                var keyword = await _dbContext.Keywords.FindAsync((int)request.TargetId);
+                if (keyword == null)
+                {
+                    return ServiceResult<bool>.Fail("Keyword not found.");
                 }
             }
             else if (type.Equals("Journal", StringComparison.OrdinalIgnoreCase))
@@ -59,7 +67,7 @@ namespace SWP391.Service
             }
             else
             {
-                return ServiceResult<bool>.Fail($"TargetType '{type}' is not supported yet. Only 'Author', 'Journal', and 'ResearchTopic' are supported.");
+                return ServiceResult<bool>.Fail($"TargetType '{type}' is not supported yet. Only 'Author', 'Keyword', 'Journal', and 'ResearchTopic' are supported.");
             }
 
             // [BƯỚC 2]: Toggle follow
@@ -104,6 +112,12 @@ namespace SWP391.Service
                 .Distinct()
                 .ToList();
 
+            var keywordIds = validFollows
+                .Where(f => f.TargetType!.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                .Select(f => (int)f.TargetId!.Value)
+                .Distinct()
+                .ToList();
+
             var topicIds = validFollows
                 .Where(f => f.TargetType!.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
                 .Select(f => (int)f.TargetId!.Value)
@@ -120,6 +134,15 @@ namespace SWP391.Service
             if (journalIds.Any())
             {
                 journals = await _dbContext.Journals.Where(j => journalIds.Contains(j.JournalId)).ToListAsync();
+            }
+
+            var keywords = new List<Keyword>();
+            if (keywordIds.Any())
+            {
+                keywords = await _dbContext.Keywords
+                    .Include(k => k.Papers)
+                    .Where(k => keywordIds.Contains(k.KeywordId))
+                    .ToListAsync();
             }
 
             var topics = new List<ResearchTopic>();
@@ -157,6 +180,15 @@ namespace SWP391.Service
                         item.JournalName = journal.JournalName;
                     }
                 }
+                else if (targetType.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+                {
+                    var keyword = keywords.FirstOrDefault(k => k.KeywordId == targetId);
+                    if (keyword != null)
+                    {
+                        item.KeywordText = keyword.KeywordText;
+                        item.PaperCount = keyword.Papers?.Count ?? 0;
+                    }
+                }
                 else if (targetType.Equals("ResearchTopic", StringComparison.OrdinalIgnoreCase))
                 {
                     var topic = topics.FirstOrDefault(t => t.TopicId == targetId);
@@ -184,6 +216,11 @@ namespace SWP391.Service
             if (type.Equals("Journal", StringComparison.OrdinalIgnoreCase))
             {
                 return "Journal";
+            }
+
+            if (type.Equals("Keyword", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Keyword";
             }
 
             if (type.Equals("Author", StringComparison.OrdinalIgnoreCase))

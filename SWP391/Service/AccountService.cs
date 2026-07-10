@@ -320,7 +320,6 @@ namespace SWP391.Service
             var username = _configuration["Email:SmtpUsername"];
             var password = _configuration["Email:SmtpPassword"];
             var from = _configuration["Email:From"] ?? username;
-
             if (string.IsNullOrWhiteSpace(host) ||
                 string.IsNullOrWhiteSpace(username) ||
                 string.IsNullOrWhiteSpace(password) ||

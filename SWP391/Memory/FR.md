@@ -26,6 +26,14 @@ Phân tích xu hướng sâu
 Theo dõi topic/journal
 Xem analytics nâng cao
 
+Scope ưu tiên của Researcher cần bám đúng 4 khía cạnh sau:
+- Phân tích xu hướng nghiên cứu theo thời gian.
+- Theo dõi journal và keyword ở mức chuyên sâu.
+- Khám phá các chủ đề mới nổi.
+- Xem thống kê công bố theo thời gian để nhận biết biến động nghiên cứu.
+
+Nghĩa là Researcher phải được thiết kế như một persona phục vụ research insight, không chỉ là người tìm paper hoặc bookmark nội dung.
+
 👩‍🎓 Lecturer / Student
 Tìm paper
 Bookmark
