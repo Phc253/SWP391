@@ -23,5 +23,11 @@ namespace SWP391.Models.Integration
         /// Only populated by RefreshExistingOpenAlexWorksAsync; empty for fetch-new-works runs.
         /// </summary>
         public List<UpdatedPaperDetail> UpdatedPapers { get; set; } = new();
+
+        /// <summary>
+        /// Paper preview data (title, abstract, citation count) for newly saved papers.
+        /// Populated during fetch-new-works runs to return preview info to client.
+        /// </summary>
+        public List<PaperPreviewDto> PaperPreviews { get; set; } = new();
     }
 }

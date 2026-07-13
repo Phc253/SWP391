@@ -182,7 +182,8 @@ namespace SWP391.Service
                     ErrorMessage = syncJob.ErrorMessage,
                     NotificationsCreated = notificationsCreated,
                     TrendComputation = trendResult.Data,
-                    UpdatedPapers = refreshResult.UpdatedPapers
+                    UpdatedPapers = refreshResult.UpdatedPapers,
+                    NewPaperPreviews = fetchResult.PaperPreviews
                 });
             }
             catch (Exception ex)
