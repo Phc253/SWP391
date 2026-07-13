@@ -26,5 +26,11 @@ namespace SWP391.Models.Integration
         /// Only populated for sync-openalex (refresh) operations; empty for fetch-only operations.
         /// </summary>
         public List<UpdatedPaperDetail> UpdatedPapers { get; set; } = new();
+
+        /// <summary>
+        /// Paper preview data (title, abstract, citation count) for newly fetched papers.
+        /// Populated for fetch-only operations to allow immediate client display.
+        /// </summary>
+        public List<PaperPreviewDto> NewPaperPreviews { get; set; } = new();
     }
 }

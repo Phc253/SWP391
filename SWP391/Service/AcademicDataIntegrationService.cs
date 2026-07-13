@@ -363,6 +363,18 @@ namespace SWP391.Service
             await _dbContext.SaveChangesAsync();
             _logger.LogInformation("Saved Paper Id={PaperId} ExternalId={ExternalId} Title={Title}", paper.PaperId, paper.ExternalId, paper.Title);
 
+            // Collect paper preview for fetch response (handle null abstract)
+            if (ingestionResult != null)
+            {
+                ingestionResult.PaperPreviews.Add(new PaperPreviewDto
+                {
+                    PaperId = paper.PaperId,
+                    Title = paper.Title,
+                    Abstract = string.IsNullOrWhiteSpace(paper.Abstract) ? "(No abstract available)" : paper.Abstract,
+                    CitationCount = paper.CitationCount
+                });
+            }
+
             if (work.Authorships != null)
             {
                 foreach (var authorship in work.Authorships)
