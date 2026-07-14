@@ -295,6 +295,122 @@ namespace SWP391.Service
             return ServiceResult<string>.Ok("Email verified successfully. Your account is now active.");
         }
 
+        public async Task<ServiceResult<string>> ForgotPasswordAsync(ForgotPasswordRequest request)
+        {
+            var email = request?.Email?.Trim();
+            if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+            {
+                return ServiceResult<string>.Fail("A valid email is required.", ErrorCodes.ValidationError);
+            }
+
+            var user = await _accountRepository.GetUserByEmailAsync(email);
+
+            // Always return 200 to avoid revealing whether the email exists
+            if (user == null || user.IsActive != true)
+            {
+                return ServiceResult<string>.Ok("If your email is registered and active, you will receive a PIN shortly.");
+            }
+
+            await _accountRepository.InvalidatePreviousPinsAsync(user.UserId);
+
+            var pin = Random.Shared.Next(100000, 1000000).ToString();
+            await _accountRepository.AddPasswordResetPinAsync(new Entities.PasswordResetPin
+            {
+                UserId = user.UserId,
+                PinHash = HashToken(pin),
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15)
+            });
+
+            await SendPasswordResetPinEmailAsync(email, pin);
+
+            return ServiceResult<string>.Ok("If your email is registered and active, you will receive a PIN shortly.");
+        }
+
+        public async Task<ServiceResult<string>> ResetPasswordAsync(ResetPasswordRequest request)
+        {
+            var email = request?.Email?.Trim();
+            var pin = request?.Pin?.Trim();
+            var newPassword = request?.NewPassword ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(email) || !IsValidEmail(email))
+            {
+                return ServiceResult<string>.Fail("A valid email is required.", ErrorCodes.ValidationError);
+            }
+
+            if (string.IsNullOrWhiteSpace(pin) || pin.Length != 6 || !pin.All(char.IsDigit))
+            {
+                return ServiceResult<string>.Fail("PIN must be exactly 6 digits.", ErrorCodes.ValidationError);
+            }
+
+            if (newPassword.Length < MinPasswordLength)
+            {
+                return ServiceResult<string>.Fail("Password must be at least 6 characters.", ErrorCodes.ValidationError);
+            }
+
+            if (newPassword.Length > MaxPasswordLength)
+            {
+                return ServiceResult<string>.Fail("Password is too long.", ErrorCodes.ValidationError);
+            }
+
+            var user = await _accountRepository.GetUserByEmailAsync(email);
+            if (user == null)
+            {
+                return ServiceResult<string>.Fail(
+                    "Invalid or expired PIN.",
+                    ErrorCodes.ValidationError,
+                    StatusCodes.Status400BadRequest);
+            }
+
+            var pinHash = HashToken(pin);
+            var resetPin = await _accountRepository.GetValidPasswordResetPinAsync(user.UserId, pinHash);
+            if (resetPin == null)
+            {
+                return ServiceResult<string>.Fail(
+                    "Invalid or expired PIN.",
+                    ErrorCodes.ValidationError,
+                    StatusCodes.Status400BadRequest);
+            }
+
+            await _accountRepository.ResetPasswordAsync(resetPin, HashPassword(newPassword));
+
+            return ServiceResult<string>.Ok("Password reset successful.");
+        }
+
+        private async Task SendPasswordResetPinEmailAsync(string recipientEmail, string pin)
+        {
+            var host = _configuration["Email:SmtpHost"];
+            var username = _configuration["Email:SmtpUsername"];
+            var password = _configuration["Email:SmtpPassword"];
+            var from = _configuration["Email:From"] ?? username;
+
+            if (string.IsNullOrWhiteSpace(host) ||
+                string.IsNullOrWhiteSpace(username) ||
+                string.IsNullOrWhiteSpace(password) ||
+                string.IsNullOrWhiteSpace(from))
+            {
+                throw new InvalidOperationException("Email SMTP settings are not fully configured.");
+            }
+
+            var port = int.TryParse(_configuration["Email:SmtpPort"], out var configuredPort) ? configuredPort : 587;
+            var enableSsl = !bool.TryParse(_configuration["Email:EnableSsl"], out var configuredSsl) || configuredSsl;
+
+            using var message = new MailMessage(from, recipientEmail)
+            {
+                Subject = "Reset your Scientific Trend password",
+                Body = $"Your password reset PIN is: {pin}\nThis PIN expires in 15 minutes.\nIf you did not request this, please ignore this email.",
+                IsBodyHtml = false
+            };
+
+            using var client = new SmtpClient(host, port)
+            {
+                EnableSsl = enableSsl,
+                Credentials = new System.Net.NetworkCredential(username, password)
+            };
+
+            await client.SendMailAsync(message);
+        }
+
         private static string GenerateEmailVerificationToken()
         {
             var bytes = new byte[32];

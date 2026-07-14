@@ -28,6 +28,8 @@ public partial class ScientificTrendDbContext : DbContext
 
     public virtual DbSet<EmailVerificationToken> EmailVerificationTokens { get; set; }
 
+    public virtual DbSet<PasswordResetPin> PasswordResetPins { get; set; }
+
     public virtual DbSet<Follow> Follows { get; set; }
 
     public virtual DbSet<GroupMember> GroupMembers { get; set; }
@@ -155,6 +157,22 @@ public partial class ScientificTrendDbContext : DbContext
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
             entity.Property(e => e.TokenHash).HasMaxLength(255);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PasswordResetPin>(entity =>
+        {
+            entity.HasKey(e => e.PasswordResetPinId);
+
+            entity.HasIndex(e => e.PinHash, "IX_PasswordResetPins_PinHash").IsUnique();
+
+            entity.HasIndex(e => new { e.UserId, e.UsedAt }, "IX_PasswordResetPins_User_UsedAt");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.PinHash).HasMaxLength(255);
 
             entity.HasOne(d => d.User).WithMany()
                 .HasForeignKey(d => d.UserId)

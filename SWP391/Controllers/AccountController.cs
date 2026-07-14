@@ -146,6 +146,30 @@ namespace SWP391.Controllers
             return Ok(new { Message = "Bài báo đã đưa vào hàng chờ kiểm duyệt." });
         }
 
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            var result = await _accountServices.ForgotPasswordAsync(request);
+            if (!result.Success)
+            {
+                return this.ToErrorResult(result);
+            }
+
+            return Ok(new { message = result.Data });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            var result = await _accountServices.ResetPasswordAsync(request);
+            if (!result.Success)
+            {
+                return this.ToErrorResult(result);
+            }
+
+            return Ok(new { message = result.Data });
+        }
+
         private static string? GetBearerToken(HttpRequest request)
         {
             const string bearerPrefix = "Bearer ";
