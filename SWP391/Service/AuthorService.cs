@@ -17,17 +17,20 @@ namespace SWP391.Service
         private readonly AuthorRepository _authorRepository;
         private readonly FollowRepository _followRepository;
         private readonly HttpClient _httpClient;
+        private readonly UserQuotaService _userQuotaService;
         private readonly ILogger<AuthorService> _logger;
 
         public AuthorService(
             AuthorRepository authorRepository,
             FollowRepository followRepository,
             HttpClient httpClient,
+            UserQuotaService userQuotaService,
             ILogger<AuthorService> logger)
         {
             _authorRepository = authorRepository;
             _followRepository = followRepository;
             _httpClient = httpClient;
+            _userQuotaService = userQuotaService;
             // Setting a User-Agent is recommended for polite usage of APIs like OpenAlex
             if (!_httpClient.DefaultRequestHeaders.Contains("User-Agent"))
             {
@@ -69,6 +72,13 @@ namespace SWP391.Service
             // 4. Bổ sung thông tin (Enrichment) từ OpenAlex API
             try
             {
+                var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:EnrichAuthor");
+                if (!budgetCheck.Success)
+                {
+                    _logger.LogWarning("Skipping Author profile enrichment for '{AuthorName}' because: {Reason}", author.AuthorName, budgetCheck.Error);
+                    return ServiceResult<AuthorProfileResponse>.Ok(profile);
+                }
+
                 var encodedName = Uri.EscapeDataString(author.AuthorName);
                 var url = $"https://api.openalex.org/authors?search={encodedName}";
 

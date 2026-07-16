@@ -109,6 +109,43 @@ namespace SWP391.Service
             return ServiceResult<PaperListResponse>.Ok(response);
         }
 
+        public async Task<ServiceResult<AuthorPapersResponse>> GetPapersByAuthorAsync(int authorId, int page, int pageSize)
+        {
+            if (authorId <= 0)
+            {
+                return ServiceResult<AuthorPapersResponse>.Fail("Author id must be greater than 0");
+            }
+
+            var (author, workCount, citationCount) = await _paperRepository.GetAuthorStatsAsync(authorId);
+            if (author == null)
+            {
+                return ServiceResult<AuthorPapersResponse>.Fail("Author not found");
+            }
+
+            NormalizePaging(ref page, ref pageSize);
+
+            var request = new PaperSearchRequest
+            {
+                AuthorIds = new List<int> { authorId },
+                Page = page,
+                PageSize = pageSize
+            };
+
+            var (papers, totalCount) = await _paperRepository.SearchPapersAsync(request);
+            var paperListResponse = ToPaperListResponse(papers, totalCount, page, pageSize);
+
+            var response = new AuthorPapersResponse
+            {
+                AuthorId = author.AuthorId,
+                AuthorName = author.AuthorName ?? string.Empty,
+                WorkCount = workCount,
+                CitationCount = citationCount,
+                Papers = paperListResponse
+            };
+
+            return ServiceResult<AuthorPapersResponse>.Ok(response);
+        }
+
         public async Task<ServiceResult<object>> GetPaperDetailsAsync(long id)
         {
             var paper = await _paperRepository.GetPaperByIdAsync(id);

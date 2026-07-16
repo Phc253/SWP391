@@ -15,13 +15,16 @@ namespace SWP391.Models.Integration
         /// <summary>Citation count fetched from OpenAlex during this sync.</summary>
         public int NewCitationCount { get; set; }
 
-        /// <summary>Change in citation count (NewCitationCount - OldCitationCount).</summary>
-        public int CitationDelta => NewCitationCount - OldCitationCount;
-
-        /// <summary>Primary research topic name the paper belongs to (may be null if not classified).</summary>
-        public string? TopicName { get; set; }
-
         /// <summary>UTC timestamp when the citation was updated in this sync run.</summary>
         public DateTime UpdatedAt { get; set; }
+
+        /// <summary>Publication year of the paper (null if not available).</summary>
+        public int? PublicationYear { get; set; }
+
+        /// <summary>
+        /// Comma-separated list of author names for this paper.
+        /// Empty string if no authors are available.
+        /// </summary>
+        public string Authors { get; set; } = string.Empty;
     }
 }

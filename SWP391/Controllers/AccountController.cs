@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using SWP391.Models.Account;
 using SWP391.Extensions;
 using SWP391.Models.Common;
@@ -108,26 +108,24 @@ namespace SWP391.Controllers
         // [MỚI] Đây là API Test việc Protect tài nguyên bằng JWT
         [HttpGet("profile")]
         [Microsoft.AspNetCore.Authorization.Authorize] // Bắt buộc phải có Token hợp lệ để chạy được
-        public IActionResult GetProfile()
+        public async Task<IActionResult> GetProfile()
         {
-            // Trong API này bạn có quyền đọc các Claims đã được giải mã mà hệ thống lấy được từ Token
-            var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
-            var email = User.FindFirstValue(System.Security.Claims.ClaimTypes.Email);
-            var fullName = User.FindFirstValue(System.Security.Claims.ClaimTypes.Name);
-            var actorType = User.FindFirstValue("actor_type");
-            var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role)
-                .Select(c => c.Value)
-                .ToList();
-
-            return Ok(new 
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(userIdStr, out var userId))
             {
+                return this.ErrorResult(
+                    ErrorCodes.Unauthorized,
+                    "Invalid token claims.",
+                    StatusCodes.Status401Unauthorized);
+            }
 
-                UserId = userId,
-                Email = email,
-                FullName = fullName,
-                ActorType = actorType,
-                Roles = roles
-            });
+            var result = await _accountServices.GetProfileAsync(userId);
+            if (!result.Success)
+            {
+                return this.ToErrorResult(result);
+            }
+
+            return Ok(result.Data);
         }
 
         // [MỚI] Test Policy Based Authorization cho Admin

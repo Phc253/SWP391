@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SWP391.Service;
+using System.Security.Claims;
 
 namespace SWP391.Controllers
 {
@@ -9,10 +10,12 @@ namespace SWP391.Controllers
     public class ReportController : ControllerBase
     {
         private readonly ReportService _reportService;
+        private readonly UserQuotaService _userQuotaService;
 
-        public ReportController(ReportService reportService)
+        public ReportController(ReportService reportService, UserQuotaService userQuotaService)
         {
             _reportService = reportService;
+            _userQuotaService = userQuotaService;
         }
 
         // GET: api/reports/papers?page=1&pageSize=20&year=2023&keywordText=AI
@@ -51,6 +54,15 @@ namespace SWP391.Controllers
             [FromQuery] int? year = null,
             [FromQuery] string? keywordText = null)
         {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:ExportReport");
+            if (!budgetCheck.Success)
+            {
+                return StatusCode(402, new { error = budgetCheck.Error });
+            }
+
             var result = await _reportService.ExportPapersReportAsync(year, keywordText);
             if (!result.Success)
                 return BadRequest(new { error = result.Error });
@@ -64,6 +76,15 @@ namespace SWP391.Controllers
         [Authorize(Policy = "IsMember")]
         public async Task<IActionResult> ExportKeywordStats()
         {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:ExportReport");
+            if (!budgetCheck.Success)
+            {
+                return StatusCode(402, new { error = budgetCheck.Error });
+            }
+
             var result = await _reportService.ExportKeywordStatsAsync();
             if (!result.Success)
                 return StatusCode(500, new { error = result.Error });
@@ -78,6 +99,15 @@ namespace SWP391.Controllers
             [FromQuery] int? year = null,
             [FromQuery] string? keywordText = null)
         {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:ExportReport");
+            if (!budgetCheck.Success)
+            {
+                return StatusCode(402, new { error = budgetCheck.Error });
+            }
+
             var result = await _reportService.ExportPapersReportPdfAsync(year, keywordText);
             if (!result.Success)
                 return BadRequest(new { error = result.Error });
@@ -89,6 +119,15 @@ namespace SWP391.Controllers
         [Authorize(Policy = "IsMember")]
         public async Task<IActionResult> ExportKeywordStatsPdf()
         {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:ExportReport");
+            if (!budgetCheck.Success)
+            {
+                return StatusCode(402, new { error = budgetCheck.Error });
+            }
+
             var result = await _reportService.ExportKeywordStatsPdfAsync();
             if (!result.Success)
                 return StatusCode(500, new { error = result.Error });

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SWP391.Service;
+using System.Security.Claims;
 
 namespace SWP391.Controllers
 {
@@ -20,9 +21,16 @@ namespace SWP391.Controllers
         [HttpPost("sync-openalex")] 
         public async Task<IActionResult> SyncOpenAlex(int maxResults = 20)
         {
-            var result = await _dataSyncService.SyncOpenAlexAsync(maxResults);
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var result = await _dataSyncService.SyncOpenAlexAsync(maxResults, userId);
             if (!result.Success)
+            {
+                if (result.Error != null && (result.Error.Contains("credit") || result.Error.Contains("budget") || result.Error.Contains("Quota") || result.Error.Contains("limit")))
+                    return StatusCode(402, result);
                 return StatusCode(500, result);
+            }
 
             return Ok(result.Data);
         }
@@ -34,9 +42,16 @@ namespace SWP391.Controllers
             int maxResults = 20,
             bool useCheckpoint = false)
         {
-            var result = await _dataSyncService.FetchOpenAlexAsync(keyword, maxResults, useCheckpoint);
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int? userId = int.TryParse(userIdStr, out var id) ? id : null;
+
+            var result = await _dataSyncService.FetchOpenAlexAsync(keyword, maxResults, useCheckpoint, userId);
             if (!result.Success)
+            {
+                if (result.Error != null && (result.Error.Contains("credit") || result.Error.Contains("budget") || result.Error.Contains("Quota") || result.Error.Contains("limit")))
+                    return StatusCode(402, result);
                 return StatusCode(500, result);
+            }
 
             return Ok(result.Data);
         }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SWP391.Entities;
@@ -22,6 +22,10 @@ public partial class User
     public DateTime? CreatedAt { get; set; }
 
     public bool? IsActive { get; set; }
+
+    public int? RemainingCredits { get; set; }
+
+    public DateTime? LastCreditResetTime { get; set; }
 
     public virtual ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
 
