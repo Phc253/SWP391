@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SWP391.Entities;
 
@@ -11,9 +12,11 @@ using SWP391.Entities;
 namespace SWP391.Migrations
 {
     [DbContext(typeof(ScientificTrendDbContext))]
-    partial class ScientificTrendDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260715155635_AddUserCredits")]
+    partial class AddUserCredits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using SWP391.Entities;
 
 namespace SWP391.Repositories
@@ -171,6 +171,13 @@ namespace SWP391.Repositories
                     throw;
                 }
             }
+        }
+
+        public Task<User?> GetUserByIdAsync(int userId)
+        {
+            return _dbContext.Users
+                .Include(u => u.Roles)
+                .FirstOrDefaultAsync(u => u.UserId == userId);
         }
     }
 }

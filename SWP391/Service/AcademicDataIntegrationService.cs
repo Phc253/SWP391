@@ -288,6 +288,7 @@ namespace SWP391.Service
             var existingPaper = await _dbContext.Papers
                 .Include(p => p.Keywords)
                     .ThenInclude(k => k.Topic)
+                .Include(p => p.Authors)
                 .FirstOrDefaultAsync(p => p.ExternalId == work.Id);
 
             if (existingPaper != null)
@@ -307,10 +308,12 @@ namespace SWP391.Service
                     // Collect update detail for admin response display.
                     if (ingestionResult != null)
                     {
-                        var topicName = existingPaper.Keywords
-                            .Where(k => k.Topic != null)
-                            .Select(k => k.Topic!.TopicName)
-                            .FirstOrDefault();
+                        // Build authors string: prefer DB-stored authors, fall back to work data.
+                        var authorNames = existingPaper.Authors.Any()
+                            ? string.Join(", ", existingPaper.Authors.Select(a => a.AuthorName).Where(n => !string.IsNullOrWhiteSpace(n)))
+                            : string.Join(", ", (work.Authorships ?? Enumerable.Empty<Authorship>())
+                                .Select(a => a.Author?.DisplayName)
+                                .Where(n => !string.IsNullOrWhiteSpace(n)));
 
                         ingestionResult.UpdatedPapers.Add(new UpdatedPaperDetail
                         {
@@ -318,8 +321,9 @@ namespace SWP391.Service
                             Title = existingPaper.Title ?? work.Title,
                             OldCitationCount = oldCitation,
                             NewCitationCount = citationCount,
-                            TopicName = topicName,
-                            UpdatedAt = DateTime.UtcNow
+                            UpdatedAt = DateTime.UtcNow,
+                            PublicationYear = existingPaper.PublicationYear ?? work.PublicationYear,
+                            Authors = authorNames ?? string.Empty
                         });
                     }
 

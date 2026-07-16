@@ -29,6 +29,18 @@ namespace SWP391.Controllers
             return Ok(result);
         }
 
+        [HttpGet("facets/authors/{authorId:int}/papers")]
+        public async Task<IActionResult> GetPapersByAuthor(int authorId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+        {
+            var result = await _paperService.GetPapersByAuthorAsync(authorId, page, pageSize);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
         [HttpGet("facets/keywords")]
         public async Task<IActionResult> GetKeywordFacets([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {

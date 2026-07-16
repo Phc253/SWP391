@@ -1,4 +1,4 @@
-﻿using System.Net.Mail;
+using System.Net.Mail;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Tokens;
@@ -466,5 +466,29 @@ namespace SWP391.Service
             await client.SendMailAsync(message);
         }
 
+        public async Task<ServiceResult<UserProfileResponse>> GetProfileAsync(int userId)
+        {
+            var user = await _accountRepository.GetUserByIdAsync(userId);
+            if (user == null)
+            {
+                return ServiceResult<UserProfileResponse>.Fail(
+                    "User not found.",
+                    ErrorCodes.ValidationError,
+                    Microsoft.AspNetCore.Http.StatusCodes.Status404NotFound);
+            }
+
+            var response = new UserProfileResponse
+            {
+                UserId = user.UserId,
+                Email = user.Email,
+                FullName = user.FullName,
+                ActorType = user.ActorType,
+                RemainingCredits = user.RemainingCredits,
+                LastCreditResetTime = user.LastCreditResetTime,
+                Roles = user.Roles.Select(r => r.RoleName).ToList()
+            };
+
+            return ServiceResult<UserProfileResponse>.Ok(response);
+        }
     }
 }

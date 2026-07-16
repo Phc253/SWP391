@@ -20,6 +20,7 @@ namespace SWP391.Service
         private readonly TrendService _trendService;
         private readonly NotificationTriggerService _notificationTriggerService;
         private readonly ActivityLogService _activityLogService;
+        private readonly UserQuotaService _userQuotaService;
         private readonly ILogger<DataSyncService> _logger;
 
         public DataSyncService(
@@ -28,6 +29,7 @@ namespace SWP391.Service
             TrendService trendService,
             NotificationTriggerService notificationTriggerService,
             ActivityLogService activityLogService,
+            UserQuotaService userQuotaService,
             ILogger<DataSyncService> logger)
         {
             _dbContext = dbContext;
@@ -35,18 +37,20 @@ namespace SWP391.Service
             _trendService = trendService;
             _notificationTriggerService = notificationTriggerService;
             _activityLogService = activityLogService;
+            _userQuotaService = userQuotaService;
             _logger = logger;
         }
 
-        public async Task<ServiceResult<DataSyncResponse>> SyncOpenAlexAsync(int maxResults)
+        public async Task<ServiceResult<DataSyncResponse>> SyncOpenAlexAsync(int maxResults, int? userId = null)
         {
-            return await RefreshExistingOpenAlexAsync(maxResults);
+            return await RefreshExistingOpenAlexAsync(maxResults, userId);
         }
 
         public async Task<ServiceResult<DataSyncResponse>> FetchOpenAlexAsync(
             string keyword,
             int maxResults,
-            bool useFetchCheckpoint = false)
+            bool useFetchCheckpoint = false,
+            int? userId = null)
         {
             return await RunOpenAlexPipelineAsync(
                 operation: "FetchOpenAlex",
@@ -54,10 +58,11 @@ namespace SWP391.Service
                 maxResults: maxResults,
                 fetchNewWorks: true,
                 refreshExistingWorks: false,
-                useFetchCheckpoint: useFetchCheckpoint);
+                useFetchCheckpoint: useFetchCheckpoint,
+                userId: userId);
         }
 
-        public async Task<ServiceResult<DataSyncResponse>> RefreshExistingOpenAlexAsync(int maxResults)
+        public async Task<ServiceResult<DataSyncResponse>> RefreshExistingOpenAlexAsync(int maxResults, int? userId = null)
         {
             return await RunOpenAlexPipelineAsync(
                 operation: "SyncOpenAlex",
@@ -65,7 +70,8 @@ namespace SWP391.Service
                 maxResults: maxResults,
                 fetchNewWorks: false,
                 refreshExistingWorks: true,
-                useFetchCheckpoint: false);
+                useFetchCheckpoint: false,
+                userId: userId);
         }
 
         private async Task<ServiceResult<DataSyncResponse>> RunOpenAlexPipelineAsync(
@@ -74,7 +80,8 @@ namespace SWP391.Service
             int maxResults,
             bool fetchNewWorks,
             bool refreshExistingWorks,
-            bool useFetchCheckpoint)
+            bool useFetchCheckpoint,
+            int? userId = null)
         {
             keyword = string.IsNullOrWhiteSpace(keyword) ? "Computer Science" : keyword.Trim();
             maxResults = Math.Clamp(maxResults, 1, 100);
@@ -86,6 +93,15 @@ namespace SWP391.Service
             }
 
             var source = await EnsureOpenAlexSourceAsync();
+
+            // Validate and consume daily credit/global budget
+            var budgetCheck = await _userQuotaService.CheckAndConsumeBudgetAsync(userId, "Budget:Cost:FetchWork");
+            if (!budgetCheck.Success)
+            {
+                _logger.LogWarning("Fetch operation rejected: {Reason}", budgetCheck.Error);
+                return ServiceResult<DataSyncResponse>.Fail(budgetCheck.Error ?? "Quota check failed.");
+            }
+
             var syncJob = new SyncJob
             {
                 SourceId = source.SourceId,

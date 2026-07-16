@@ -195,6 +195,31 @@ namespace SWP391.Repositories
                 .ToListAsync();
         }
 
+        public async Task<(Author? Author, int WorkCount, int CitationCount)> GetAuthorStatsAsync(int authorId)
+        {
+            var author = await _dbContext.Authors
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.AuthorId == authorId);
+
+            if (author == null)
+            {
+                return (null, 0, 0);
+            }
+
+            var stats = await _dbContext.PaperAuthors
+                .Where(pa => pa.AuthorId == authorId)
+                .Select(pa => pa.Paper)
+                .GroupBy(p => 1)
+                .Select(g => new
+                {
+                    WorkCount = g.Count(),
+                    CitationCount = g.Sum(p => p.CitationCount ?? 0)
+                })
+                .FirstOrDefaultAsync();
+
+            return (author, stats?.WorkCount ?? 0, stats?.CitationCount ?? 0);
+        }
+
         private static IQueryable<Paper> ApplyPaperFilters(IQueryable<Paper> query, PaperSearchRequest filters)
         {
             var q = Clean(filters.Q);

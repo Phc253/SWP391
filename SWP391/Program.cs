@@ -135,6 +135,7 @@ namespace SWP391
             builder.Services.AddScoped<ResearcherService>();
             builder.Services.AddScoped<ActivityLogRepository>();
             builder.Services.AddScoped<ActivityLogService>();
+            builder.Services.AddScoped<UserQuotaService>();
             builder.Services.AddHostedService<TrendComputeBackgroundService>();
             builder.Services.Configure<DataSyncSchedulerOptions>(
                     builder.Configuration.GetSection(DataSyncSchedulerOptions.SectionName));

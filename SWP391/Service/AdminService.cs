@@ -495,7 +495,9 @@ namespace SWP391.Service
             ActorType = user.ActorType,
             IsActive  = user.IsActive ?? true,
             CreatedAt = user.CreatedAt,
-            Roles     = user.Roles.Select(r => r.RoleName).ToList()
+            Roles     = user.Roles.Select(r => r.RoleName).ToList(),
+            RemainingCredits = user.RemainingCredits,
+            LastCreditResetTime = user.LastCreditResetTime
         };
     }
 }
